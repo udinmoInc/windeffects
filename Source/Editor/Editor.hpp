@@ -18,6 +18,11 @@
 #include "HouseUI/Core/EventSystem.hpp"
 #include "HouseUI/Rendering/UIRenderer.hpp"
 #include "HouseUI/Layout/Box.hpp"
+#include "HouseUI/Widgets/ViewportWidget.hpp"
+#include "HouseUI/Widgets/TreeView.hpp"
+#include "HouseUI/Widgets/PropertyEditor.hpp"
+#include "HouseUI/Widgets/StatusBar.hpp"
+#include "HouseUI/Widgets/TitleBar.hpp"
 
 namespace HouseEngine {
 
@@ -36,6 +41,8 @@ private:
     void InitSDL();
     void MainLoop();
     void Shutdown();
+
+    static SDL_HitTestResult SDLCALL HitTestCallback(SDL_Window* win, const SDL_Point* area, void* data);
 
     // HouseUI Editor layout construction
     void BuildEditorUI();
@@ -61,10 +68,12 @@ private:
     std::unique_ptr<UI::UIRenderer> m_UIRenderer;
 
     // References to dynamic panels for real-time updates
-    std::shared_ptr<UI::Box> m_OutlinerList;
-    std::shared_ptr<UI::Box> m_InspectorPanel;
+    std::shared_ptr<UI::TreeView> m_OutlinerTreeView;
+    std::shared_ptr<UI::PropertyEditor> m_PropertyEditor;
     std::shared_ptr<UI::Box> m_ConsoleList;
-    std::shared_ptr<UI::Box> m_ContentList;
+    std::shared_ptr<UI::StatusBar> m_StatusBar;
+    std::shared_ptr<UI::TitleBar> m_TitleBar;
+    std::shared_ptr<UI::ViewportWidget> m_ViewportWidget; // for FlushPendingResize()
 
     size_t m_LastEntityCount = 0;
     int m_LastSelectedEntity = -1;

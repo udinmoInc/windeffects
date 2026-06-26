@@ -33,6 +33,10 @@ public:
     virtual void OnKeyDown(const KeyEvent&) {}
     virtual void OnFocus() { m_Focused = true; }
     virtual void OnBlur() { m_Focused = false; }
+    
+    // State management
+    virtual void SetActive(bool active) { m_IsActive = active; }
+    virtual bool IsActive() const { return m_IsActive; }
 
     // Child management
     void AddChild(const std::shared_ptr<Widget>& child);
@@ -64,6 +68,7 @@ protected:
     bool m_Focused = false;
     bool m_Hovered = false;
     bool m_Visible = true;
+    bool m_IsActive = false;
 };
 
 } // namespace HouseEngine::UI

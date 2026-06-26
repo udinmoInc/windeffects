@@ -19,6 +19,8 @@ struct UIVertex {
     float pos[2];
     float uv[2];
     float color[4];
+    float sdfRect[4];   // x, y, width, height (of the primitive bounds)
+    float sdfParams[4]; // x=cornerRadius, y=type (0=texture, 1=sdf-rect)
 };
 
 class UIRenderer {
@@ -48,7 +50,7 @@ private:
 
     std::shared_ptr<VulkanContext> m_Context;
     std::shared_ptr<FontAtlas> m_FontAtlas;
-
+    std::shared_ptr<FontAtlas> m_IconAtlas;
     // Pipeline resources
     VkDescriptorSetLayout m_TextureDescLayout = VK_NULL_HANDLE;
     VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;

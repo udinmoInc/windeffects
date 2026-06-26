@@ -33,6 +33,10 @@ public:
 
     void Tick(float deltaTime) override;
 
+    // Call once per frame BEFORE BeginFrame to apply any pending resize
+    // without touching GPU resources mid command-buffer recording.
+    void FlushPendingResize();
+
 private:
     std::shared_ptr<Renderer> m_Renderer;
     std::shared_ptr<EditorCamera> m_Camera;
@@ -49,6 +53,11 @@ private:
 
     float m_FPS = 0.0f;
     float m_FrameTime = 0.0f;
+
+    // Deferred resize: set in Arrange(), applied in FlushPendingResize()
+    uint32_t m_PendingWidth  = 0;
+    uint32_t m_PendingHeight = 0;
+    bool     m_ResizePending = false;
 };
 
 } // namespace HouseEngine::UI

@@ -15,18 +15,25 @@ FontAtlas::~FontAtlas() {
     Shutdown();
 }
 
-bool FontAtlas::Init(const std::shared_ptr<VulkanContext>& context) {
+bool FontAtlas::Init(const std::shared_ptr<VulkanContext>& context, const std::string& fontName, int firstChar, int numChars, int width, int height) {
     m_Context = context;
     VkDevice device = m_Context->GetDevice();
+    
+    m_AtlasWidth = width;
+    m_AtlasHeight = height;
+    m_FirstChar = firstChar;
+    m_NumChars = numChars;
+    
+    m_BakedChars.resize(m_NumChars);
 
-    // 1. Locate and read Roboto-Regular.ttf
+    // 1. Locate and read font file
     std::vector<std::string> searchPaths = {
-        "Fonts/Roboto-Regular.ttf",
-        "../Fonts/Roboto-Regular.ttf",
-        "../../Fonts/Roboto-Regular.ttf",
-        "Build/bin/Fonts/Roboto-Regular.ttf",
-        "../Build/bin/Fonts/Roboto-Regular.ttf",
-        "Roboto-Regular.ttf"
+        "Fonts/" + fontName,
+        "../Fonts/" + fontName,
+        "../../Fonts/" + fontName,
+        "Build/bin/Fonts/" + fontName,
+        "../Build/bin/Fonts/" + fontName,
+        fontName
     };
 
     std::string fontPath = "";
@@ -45,8 +52,8 @@ bool FontAtlas::Init(const std::shared_ptr<VulkanContext>& context) {
         }
     }
 
-    if (fontPath.empty()) {
-        HE_ERROR("FontAtlas: Failed to locate or load Roboto-Regular.ttf!");
+    if (fontPath.empty() || fontBuffer.empty() || fontBuffer.size() == 0) {
+        HE_ERROR("FontAtlas: Failed to locate or load " + fontName);
         return false;
     }
     HE_INFO("FontAtlas: Successfully loaded font from " + fontPath + " (" + std::to_string(fontBuffer.size()) + " bytes)");
@@ -57,8 +64,8 @@ bool FontAtlas::Init(const std::shared_ptr<VulkanContext>& context) {
         reinterpret_cast<const unsigned char*>(fontBuffer.data()), 0,
         m_FontHeight,
         alphaBuffer.data(), m_AtlasWidth, m_AtlasHeight,
-        32, 96, // ASCII range: 32 (space) to 127
-        m_BakedChars
+        m_FirstChar, m_NumChars,
+        m_BakedChars.data()
     );
 
     if (res <= 0) {
@@ -187,13 +194,13 @@ void FontAtlas::Shutdown() {
     }
 }
 
-bool FontAtlas::GetCharQuad(char c, float* xpos, float* ypos, GlyphInfo& quad) {
-    if (c < 32 || c >= 128) {
-        return false; // Non-printable ASCII
+bool FontAtlas::GetCharQuad(int c, float* xpos, float* ypos, GlyphInfo& quad) {
+    if (c < m_FirstChar || c >= m_FirstChar + m_NumChars) {
+        return false; // Character out of baked range
     }
 
     stbtt_aligned_quad q;
-    stbtt_GetBakedQuad(m_BakedChars, m_AtlasWidth, m_AtlasHeight, c - 32, xpos, ypos, &q, 1);
+    stbtt_GetBakedQuad(m_BakedChars.data(), m_AtlasWidth, m_AtlasHeight, c - m_FirstChar, xpos, ypos, &q, 1);
 
     quad.x0 = q.x0;
     quad.y0 = q.y0;

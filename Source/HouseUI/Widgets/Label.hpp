@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Core/Widget.hpp"
+#include "../Core/Style.hpp"
 
 namespace HouseEngine::UI {
 
@@ -15,12 +16,12 @@ public:
 
     void SetText(const std::string& text) { m_Text = text; }
     const std::string& GetText() const { return m_Text; }
-    void SetColor(const Color& color) { m_Color = color; }
+    void SetStyle(const TextStyle& style) { m_Style = style; }
+    const TextStyle& GetStyle() const { return m_Style; }
 
 private:
     std::string m_Text;
-    Color m_Color;
-    float m_FontSize;
+    TextStyle m_Style;
 };
 
 } // namespace HouseEngine::UI

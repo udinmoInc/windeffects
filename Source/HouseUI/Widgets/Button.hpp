@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Core/Widget.hpp"
+#include "../Core/Style.hpp"
 #include <functional>
 
 namespace HouseEngine::UI {
@@ -19,11 +20,18 @@ public:
 
     void SetText(const std::string& text) { m_Text = text; }
     void SetOnClicked(std::function<void()> onClicked) { m_OnClicked = onClicked; }
+    void SetStyle(const WidgetStyle& style) { m_Style = style; }
 
 private:
     std::string m_Text;
     std::function<void()> m_OnClicked;
     bool m_Pressed = false;
+
+    // Animation states [0.0, 1.0]
+    float m_HoverAnim = 0.0f;
+    float m_PressAnim = 0.0f;
+
+    WidgetStyle m_Style;
 };
 
 } // namespace HouseEngine::UI

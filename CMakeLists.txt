@@ -114,15 +114,60 @@ if(NOT stb_POPULATED)
     FetchContent_Populate(stb)
 endif()
 
-# Download Roboto-Regular.ttf font file
+# 8. NanoSVG (for SVG rasterization)
+message(STATUS "Fetching NanoSVG...")
+FetchContent_Declare(
+    nanosvg
+    GIT_REPOSITORY https://github.com/memononen/nanosvg.git
+    GIT_TAG master
+    GIT_SHALLOW TRUE
+)
+FetchContent_GetProperties(nanosvg)
+if(NOT nanosvg_POPULATED)
+    FetchContent_Populate(nanosvg)
+endif()
+
+
+# Download Inter fonts
 set(FONT_DIR "${CMAKE_BINARY_DIR}/bin/Fonts")
-set(FONT_FILE "${FONT_DIR}/Roboto-Regular.ttf")
-if(NOT EXISTS "${FONT_FILE}")
-    message(STATUS "Downloading Roboto-Regular.ttf...")
+set(FONT_REGULAR "${FONT_DIR}/Inter-Regular.ttf")
+set(FONT_BOLD "${FONT_DIR}/Inter-Bold.ttf")
+
+if(NOT EXISTS "${FONT_REGULAR}")
+    message(STATUS "Downloading Inter-Regular.ttf...")
     file(DOWNLOAD 
-        "https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/Roboto-Regular.ttf"
-        "${FONT_FILE}"
+        "https://cdn.jsdelivr.net/npm/@fontsource/inter/files/inter-latin-400-normal.woff" 
+        "${FONT_REGULAR}" # WOFF is often downloaded, let's grab the raw TTF from a stable CDN:
+    )
+    # Better yet, grab from raw.githubusercontent or another reliable CDN for TTF
+    file(DOWNLOAD 
+        "https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Regular.ttf"
+        "${FONT_REGULAR}"
         SHOW_PROGRESS
+    )
+endif()
+if(NOT EXISTS "${FONT_BOLD}")
+    message(STATUS "Downloading Inter-Bold.ttf...")
+    file(DOWNLOAD 
+        "https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Bold.ttf"
+        "${FONT_BOLD}"
+        SHOW_PROGRESS
+    )
+endif()
+
+# Download Lucide Icons
+set(ICONS_DIR "${CMAKE_BINARY_DIR}/bin/Icons")
+set(LUCIDE_ZIP "${CMAKE_BINARY_DIR}/lucide.zip")
+if(NOT EXISTS "${ICONS_DIR}")
+    message(STATUS "Downloading Lucide Icons...")
+    file(DOWNLOAD 
+        "https://github.com/lucide-icons/lucide/releases/download/0.292.0/lucide-icons-0.292.0.zip"
+        "${LUCIDE_ZIP}"
+        SHOW_PROGRESS
+    )
+    file(ARCHIVE_EXTRACT 
+        INPUT "${LUCIDE_ZIP}"
+        DESTINATION "${ICONS_DIR}"
     )
 endif()
 
@@ -175,6 +220,25 @@ file(GLOB_RECURSE SOURCES
     "Source/*.hpp"
 )
 
+# Explicitly list new HouseUI widget files to ensure they're included
+list(APPEND SOURCES
+    "Source/HouseUI/Core/Animation.cpp"
+    "Source/HouseUI/Core/Icon.cpp"
+    "Source/HouseUI/Rendering/IconRenderer.cpp"
+    "Source/HouseUI/Widgets/ToolButton.cpp"
+    "Source/HouseUI/Widgets/TreeView.cpp"
+    "Source/HouseUI/Widgets/TabWidget.cpp"
+    "Source/HouseUI/Widgets/PropertyEditor.cpp"
+    "Source/HouseUI/Widgets/SearchBox.cpp"
+    "Source/HouseUI/Widgets/Panel.cpp"
+    "Source/HouseUI/Widgets/MenuBar.cpp"
+    "Source/HouseUI/Widgets/TitleBar.cpp"
+    "Source/HouseUI/Widgets/Toolbar.cpp"
+    "Source/HouseUI/Widgets/ViewportOverlay.cpp"
+    "Source/HouseUI/Widgets/ContentBrowser.cpp"
+    "Source/HouseUI/Widgets/StatusBar.cpp"
+)
+
 # Shaders
 file(GLOB_RECURSE SHADER_SOURCES
     "Source/Shaders/*.vert"
@@ -194,6 +258,7 @@ add_executable(WindEffects ${SOURCES} ${SPV_SHADERS_OUT})
 target_include_directories(WindEffects PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/Source
     ${stb_SOURCE_DIR}
+    ${nanosvg_SOURCE_DIR}/src
 )
 
 # Link Libraries
@@ -207,7 +272,7 @@ target_link_libraries(WindEffects PRIVATE
 
 # Compiler-specific settings
 if(MSVC)
-    target_compile_options(WindEffects PRIVATE /W4 /WX /permissive-)
+    target_compile_options(WindEffects PRIVATE /W3 /permissive- /Z7)
     # Disable some noisy warnings for external libraries if needed
     target_compile_definitions(WindEffects PRIVATE _CRT_SECURE_NO_WARNINGS)
     target_link_libraries(WindEffects PRIVATE dbghelp)

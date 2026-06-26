@@ -53,14 +53,38 @@ void Box::Arrange(const Rect& allottedRect) {
     float currentY = allottedRect.y + m_Padding.top;
     bool first = true;
 
-    // Count visible children
-    int visibleCount = 0;
-    for (const auto& child : m_Children) {
-        if (child->IsVisible()) visibleCount++;
+    // Calculate overflow to shrink expanding widgets (like Splitters)
+    float totalDesiredWidth = 0.0f;
+    float totalDesiredHeight = 0.0f;
+    size_t largestWidthIdx = 0;
+    size_t largestHeightIdx = 0;
+    float maxChildWidth = -1.0f;
+    float maxChildHeight = -1.0f;
+
+    for (size_t i = 0; i < m_Children.size(); ++i) {
+        if (!m_Children[i]->IsVisible()) continue;
+        Size childDesired = m_Children[i]->GetDesiredSize();
+        
+        if (m_Orientation == Orientation::Horizontal) {
+            if (totalDesiredWidth > 0) totalDesiredWidth += m_Spacing;
+            totalDesiredWidth += childDesired.width;
+            if (childDesired.width > maxChildWidth) {
+                maxChildWidth = childDesired.width;
+                largestWidthIdx = i;
+            }
+        } else {
+            if (totalDesiredHeight > 0) totalDesiredHeight += m_Spacing;
+            totalDesiredHeight += childDesired.height;
+            if (childDesired.height > maxChildHeight) {
+                maxChildHeight = childDesired.height;
+                largestHeightIdx = i;
+            }
+        }
     }
 
-    // We can distribute extra space if children want to stretch, but for v0.1
-    // let's do direct sequential layout using desired sizes.
+    float widthOverflow = std::max(0.0f, totalDesiredWidth - contentWidth);
+    float heightOverflow = std::max(0.0f, totalDesiredHeight - contentHeight);
+
     for (size_t i = 0; i < m_Children.size(); ++i) {
         const auto& child = m_Children[i];
         if (!child->IsVisible()) continue;
@@ -71,7 +95,12 @@ void Box::Arrange(const Rect& allottedRect) {
         if (m_Orientation == Orientation::Horizontal) {
             if (!first) currentX += m_Spacing;
             
-            float childWidth = isLast ? (allottedRect.x + allottedRect.width - currentX) : childDesired.width;
+            float childWidth = childDesired.width;
+            if (i == largestWidthIdx) childWidth -= widthOverflow;
+            if (isLast && currentX + childWidth < allottedRect.x + allottedRect.width) {
+                childWidth = allottedRect.x + allottedRect.width - currentX; // Fill remaining if any
+            }
+            
             float childHeight = std::min(contentHeight, childDesired.height);
             float childY = currentY + (contentHeight - childHeight) * 0.5f;
 
@@ -81,7 +110,13 @@ void Box::Arrange(const Rect& allottedRect) {
             if (!first) currentY += m_Spacing;
 
             float childWidth = std::min(contentWidth, childDesired.width);
-            float childHeight = isLast ? (allottedRect.y + allottedRect.height - currentY) : childDesired.height;
+            
+            float childHeight = childDesired.height;
+            if (i == largestHeightIdx) childHeight -= heightOverflow;
+            if (isLast && currentY + childHeight < allottedRect.y + allottedRect.height) {
+                childHeight = allottedRect.y + allottedRect.height - currentY; // Fill remaining if any
+            }
+            
             float childX = currentX + (contentWidth - childWidth) * 0.5f;
 
             child->Arrange(Rect{ childX, currentY, childWidth, childHeight });

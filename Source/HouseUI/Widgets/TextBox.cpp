@@ -1,15 +1,22 @@
 #include "TextBox.hpp"
 #include "../Core/PaintContext.hpp"
+#include "../Core/Theme.hpp"
+#include "../Core/Style.hpp"
+#include "../Core/DPIContext.hpp"
+#include "../Core/Animator.hpp"
 
 namespace HouseEngine::UI {
 
 TextBox::TextBox(const std::string& initialText, std::function<void(const std::string&)> onTextChanged)
-    : m_Text(initialText), m_OnTextChanged(onTextChanged) {}
+    : m_Text(initialText)
+    , m_OnTextChanged(onTextChanged)
+    , m_Style(WidgetStyle::TextBox())
+{}
 
 Size TextBox::Measure(const Size& availableSize) {
     (void)availableSize;
-    // Default textbox size
-    m_DesiredSize = Size{ 150.0f, 22.0f };
+    float height = m_Style.text.size + m_Style.padding.top + m_Style.padding.bottom;
+    m_DesiredSize = Size{ 150.0f, height };
     return m_DesiredSize;
 }
 
@@ -20,29 +27,37 @@ void TextBox::Arrange(const Rect& allottedRect) {
 void TextBox::Paint(PaintContext& context) {
     if (!m_Visible) return;
 
-    // Dark input field color
-    Color bgColor = Color{ 0.08f, 0.08f, 0.10f, 1.0f };
-    Color borderColor = m_Focused ? Color{ 0.20f, 0.40f, 0.70f, 1.0f } : Color{ 0.20f, 0.20f, 0.22f, 1.0f };
+    auto& theme = Theme::Get();
 
-    // 1. Draw background
-    context.DrawRect(m_Geometry, bgColor, 2.0f);
+    m_HoverAnim = Animator::Damp(m_HoverAnim, m_Hovered ? 1.0f : 0.0f, 15.0f);
+    m_FocusAnim = Animator::Damp(m_FocusAnim, m_Focused ? 1.0f : 0.0f, 20.0f);
 
-    // 2. Draw border
-    context.DrawLine(Point{m_Geometry.x, m_Geometry.y}, Point{m_Geometry.x + m_Geometry.width, m_Geometry.y}, borderColor, 1.0f);
-    context.DrawLine(Point{m_Geometry.x + m_Geometry.width, m_Geometry.y}, Point{m_Geometry.x + m_Geometry.width, m_Geometry.y + m_Geometry.height}, borderColor, 1.0f);
-    context.DrawLine(Point{m_Geometry.x + m_Geometry.width, m_Geometry.y + m_Geometry.height}, Point{m_Geometry.x, m_Geometry.y + m_Geometry.height}, borderColor, 1.0f);
-    context.DrawLine(Point{m_Geometry.x, m_Geometry.y + m_Geometry.height}, Point{m_Geometry.x, m_Geometry.y}, borderColor, 1.0f);
+    // Interpolate background color
+    Color bgColor = m_Style.background.color;
+    if (m_HoverAnim > 0.01f) {
+        bgColor = Color::Lerp(bgColor, Theme::Get().HoverOverlay, m_HoverAnim);
+    }
 
-    // 3. Draw text offset slightly
-    float textX = m_Geometry.x + 6.0f;
-    float textY = m_Geometry.y + (m_Geometry.height - 12.0f) * 0.5f;
-    context.DrawText(Point{ textX, textY }, m_Text, Color::White(), 14.0f);
+    // Draw background
+    context.DrawRoundedRect(m_Geometry, bgColor, m_Style.background.cornerRadius);
 
-    // 4. Draw blinking/static cursor if focused
+    // Draw border
+    Color borderColor = m_Style.border.color;
+    if (m_FocusAnim > 0.01f) {
+        borderColor = Color::Lerp(borderColor, m_Style.borderFocused.color, m_FocusAnim);
+    }
+    context.DrawRoundedRectOutline(m_Geometry, borderColor, m_Style.border.width, m_Style.background.cornerRadius);
+
+    // Draw text
+    float textX = m_Geometry.x + m_Style.padding.left;
+    float textY = m_Geometry.y + (m_Geometry.height - m_Style.text.size) * 0.5f;
+    context.DrawText(m_Text, Point{ textX, textY }, m_Style.text.color, m_Style.text.size);
+
+    // Draw cursor if focused
     if (m_Focused) {
-        float cursorX = textX + static_cast<float>(m_Text.length() * 8) + 2.0f;
+        float cursorX = textX + m_Text.length() * m_Style.text.size * 0.6f + 2.0f;
         float cursorY = textY;
-        context.DrawLine(Point{ cursorX, cursorY }, Point{ cursorX, cursorY + 12.0f }, Color{ 0.30f, 0.60f, 0.90f, 1.0f }, 1.5f);
+        context.DrawLine(Point{ cursorX, cursorY }, Point{ cursorX, cursorY + m_Style.text.size }, Theme::Get().SelectedAccent, 1.5f);
     }
 }
 

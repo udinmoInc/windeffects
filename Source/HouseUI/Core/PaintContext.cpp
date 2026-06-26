@@ -36,7 +36,25 @@ void PaintContext::DrawRect(const Rect& rect, const Color& color, float borderRa
     m_Commands.push_back(cmd);
 }
 
-void PaintContext::DrawText(const Point& pos, const std::string& text, const Color& color, float fontSize) {
+void PaintContext::DrawRoundedRect(const Rect& rect, const Color& color, float radius) {
+    DrawCommand cmd{};
+    cmd.type = DrawCommandType::Rect;
+    cmd.rect = rect;
+    cmd.color = color;
+    cmd.clipRect = GetCurrentClipRect();
+    cmd.borderRadius = radius;
+    m_Commands.push_back(cmd);
+}
+
+void PaintContext::DrawRoundedRectOutline(const Rect& rect, const Color& color, float thickness, float radius) {
+    // For now, simulate outline by drawing lines (could be improved with proper outline rendering)
+    DrawLine(Point{rect.x, rect.y}, Point{rect.x + rect.width, rect.y}, color, thickness);
+    DrawLine(Point{rect.x + rect.width, rect.y}, Point{rect.x + rect.width, rect.y + rect.height}, color, thickness);
+    DrawLine(Point{rect.x + rect.width, rect.y + rect.height}, Point{rect.x, rect.y + rect.height}, color, thickness);
+    DrawLine(Point{rect.x, rect.y + rect.height}, Point{rect.x, rect.y}, color, thickness);
+}
+
+void PaintContext::DrawText(const std::string& text, const Point& pos, const Color& color, float fontSize, bool bold, bool italic) {
     DrawCommand cmd{};
     cmd.type = DrawCommandType::Text;
     // Store position in rect.x, rect.y
@@ -45,7 +63,26 @@ void PaintContext::DrawText(const Point& pos, const std::string& text, const Col
     cmd.clipRect = GetCurrentClipRect();
     cmd.text = text;
     cmd.fontSize = fontSize;
+    // TODO: Store bold/italic flags in DrawCommand if needed
+    (void)bold;
+    (void)italic;
     m_Commands.push_back(cmd);
+}
+
+void PaintContext::DrawIcon(int codepoint, const Point& pos, const Color& color, float fontSize) {
+    DrawCommand cmd{};
+    cmd.type = DrawCommandType::Icon;
+    cmd.rect = { pos.x, pos.y, 0.0f, 0.0f };
+    cmd.color = color;
+    cmd.clipRect = GetCurrentClipRect();
+    cmd.codepoint = codepoint;
+    cmd.fontSize = fontSize;
+    m_Commands.push_back(cmd);
+}
+
+float PaintContext::GetTextWidth(const std::string& text, float fontSize) const {
+    // Approximate text width (should use font atlas for accurate measurement)
+    return static_cast<float>(text.length()) * fontSize * 0.6f;
 }
 
 void PaintContext::DrawLine(const Point& start, const Point& end, const Color& color, float thickness) {

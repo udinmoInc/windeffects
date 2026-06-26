@@ -10,6 +10,7 @@ namespace HouseEngine::UI {
 enum class DrawCommandType {
     Rect,
     Text,
+    Icon,
     Line,
     Texture
 };
@@ -21,6 +22,7 @@ struct DrawCommand {
     Rect clipRect;      // Scissor clipping
     VkDescriptorSet textureId = VK_NULL_HANDLE; // Used for viewport or icons
     std::string text;
+    int codepoint = 0;
     float fontSize = 14.0f;
     float borderRadius = 0.0f;
     float thickness = 1.0f;
@@ -34,9 +36,14 @@ public:
     void PopClipRect();
 
     void DrawRect(const Rect& rect, const Color& color, float borderRadius = 0.0f);
-    void DrawText(const Point& pos, const std::string& text, const Color& color, float fontSize = 14.0f);
+    void DrawRoundedRect(const Rect& rect, const Color& color, float radius);
+    void DrawRoundedRectOutline(const Rect& rect, const Color& color, float thickness, float radius);
+    void DrawText(const std::string& text, const Point& pos, const Color& color, float fontSize = 14.0f, bool bold = false, bool italic = false);
+    void DrawIcon(int codepoint, const Point& pos, const Color& color, float fontSize = 16.0f);
     void DrawLine(const Point& start, const Point& end, const Color& color, float thickness = 1.0f);
     void DrawTexture(const Rect& rect, VkDescriptorSet textureId);
+    
+    float GetTextWidth(const std::string& text, float fontSize) const;
 
     const std::vector<DrawCommand>& GetCommands() const { return m_Commands; }
     void Clear() { m_Commands.clear(); m_ClipStack.clear(); }

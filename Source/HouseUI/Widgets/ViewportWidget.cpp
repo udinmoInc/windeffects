@@ -33,23 +33,41 @@ void ViewportWidget::Arrange(const Rect& allottedRect) {
     m_Geometry = allottedRect;
 
     if (sizeChanged && allottedRect.width > 0.0f && allottedRect.height > 0.0f) {
-        m_Renderer->GetOffscreenFramebuffer().Resize(
-            static_cast<uint32_t>(allottedRect.width),
-            static_cast<uint32_t>(allottedRect.height),
-            m_Renderer->GetOffscreenRenderPass()
-        );
-        m_Camera->SetViewportSize(allottedRect.width, allottedRect.height);
+        // Do NOT touch GPU resources here — we are inside the layout/paint pass
+        // which runs mid-frame inside UIRenderer::Render(). Record the new size
+        // and let FlushPendingResize() apply it safely before the next BeginFrame().
+        m_PendingWidth  = static_cast<uint32_t>(allottedRect.width);
+        m_PendingHeight = static_cast<uint32_t>(allottedRect.height);
+        m_ResizePending = true;
+    }
+}
 
-        // Re-register viewport texture
-        if (m_uiRenderer) {
-            if (m_ViewportTextureSet != VK_NULL_HANDLE) {
-                m_uiRenderer->UnregisterTexture(m_ViewportTextureSet);
-            }
-            m_ViewportTextureSet = m_uiRenderer->RegisterTexture(
-                m_Renderer->GetOffscreenFramebuffer().GetColorImageView(),
-                m_Renderer->GetOffscreenFramebuffer().GetSampler()
-            );
+void ViewportWidget::FlushPendingResize() {
+    if (!m_ResizePending) return;
+    m_ResizePending = false;
+
+    if (m_PendingWidth == 0 || m_PendingHeight == 0) return;
+
+    m_Renderer->GetOffscreenFramebuffer().Resize(
+        m_PendingWidth,
+        m_PendingHeight,
+        m_Renderer->GetOffscreenRenderPass()
+    );
+    m_Camera->SetViewportSize(
+        static_cast<float>(m_PendingWidth),
+        static_cast<float>(m_PendingHeight)
+    );
+
+    // Re-register the viewport texture with the new image view
+    if (m_uiRenderer) {
+        if (m_ViewportTextureSet != VK_NULL_HANDLE) {
+            m_uiRenderer->UnregisterTexture(m_ViewportTextureSet);
+            m_ViewportTextureSet = VK_NULL_HANDLE;
         }
+        m_ViewportTextureSet = m_uiRenderer->RegisterTexture(
+            m_Renderer->GetOffscreenFramebuffer().GetColorImageView(),
+            m_Renderer->GetOffscreenFramebuffer().GetSampler()
+        );
     }
 }
 
@@ -79,14 +97,14 @@ void ViewportWidget::Paint(PaintContext& context) {
     float overlayX = m_Geometry.x + 15.0f;
     float overlayY = m_Geometry.y + 15.0f;
 
-    context.DrawText(Point{ overlayX, overlayY }, "FPS: " + std::to_string(static_cast<int>(m_FPS)) + " (" + std::to_string(m_FrameTime).substr(0, 4) + " ms)", overlayColor, 12.0f);
-    context.DrawText(Point{ overlayX, overlayY + 16.0f }, "Triangles: " + std::to_string(triangleCount), overlayColor, 12.0f);
-    context.DrawText(Point{ overlayX, overlayY + 32.0f }, "Draw Calls: " + std::to_string(drawCallCount), overlayColor, 12.0f);
-    context.DrawText(Point{ overlayX, overlayY + 48.0f }, "Entities: " + std::to_string(m_Scene->GetEntities().size()), overlayColor, 12.0f);
+    context.DrawText("FPS: " + std::to_string(static_cast<int>(m_FPS)) + " (" + std::to_string(m_FrameTime).substr(0, 4) + " ms)", Point{ overlayX, overlayY }, overlayColor, 12.0f);
+    context.DrawText("Triangles: " + std::to_string(triangleCount), Point{ overlayX, overlayY + 16.0f }, overlayColor, 12.0f);
+    context.DrawText("Draw Calls: " + std::to_string(drawCallCount), Point{ overlayX, overlayY + 32.0f }, overlayColor, 12.0f);
+    context.DrawText("Entities: " + std::to_string(m_Scene->GetEntities().size()), Point{ overlayX, overlayY + 48.0f }, overlayColor, 12.0f);
 
     glm::vec3 camPos = m_Camera->GetPosition();
     std::string posStr = "Cam Pos: " + std::to_string(camPos.x).substr(0, 4) + ", " + std::to_string(camPos.y).substr(0, 4) + ", " + std::to_string(camPos.z).substr(0, 4);
-    context.DrawText(Point{ overlayX, overlayY + 64.0f }, posStr, overlayColor, 12.0f);
+    context.DrawText(posStr, Point{ overlayX, overlayY + 64.0f }, overlayColor, 12.0f);
 
     // 3. Draw Clickable 3D Axis Gizmo (Top-Right)
     Point gizmoCenter = Point{ m_Geometry.x + m_Geometry.width - 55.0f, m_Geometry.y + 55.0f };
@@ -129,7 +147,7 @@ void ViewportWidget::Paint(PaintContext& context) {
         Point endPoint{ gizmoCenter.x + axis.proj.x, gizmoCenter.y + axis.proj.y };
         context.DrawLine(gizmoCenter, endPoint, axis.color, 2.5f);
         context.DrawRect(Rect{ endPoint.x - 3.0f, endPoint.y - 3.0f, 6.0f, 6.0f }, axis.color, 3.0f);
-        context.DrawText(Point{ endPoint.x + 4.0f, endPoint.y - 6.0f }, axis.label, Color::White(), 10.0f);
+        context.DrawText(axis.label, Point{ endPoint.x + 4.0f, endPoint.y - 6.0f }, Color::White(), 10.0f);
     }
 }
 

@@ -58,6 +58,20 @@ struct Color {
     static Color White() { return { 1.0f, 1.0f, 1.0f, 1.0f }; }
     static Color Black() { return { 0.0f, 0.0f, 0.0f, 1.0f }; }
     static Color Transparent() { return { 0.0f, 0.0f, 0.0f, 0.0f }; }
+
+    // Color operations
+    Color operator*(float scalar) const {
+        return { r * scalar, g * scalar, b * scalar, a * scalar };
+    }
+
+    static Color Lerp(const Color& a, const Color& b, float t) {
+        return {
+            a.r + (b.r - a.r) * t,
+            a.g + (b.g - a.g) * t,
+            a.b + (b.b - a.b) * t,
+            a.a + (b.a - a.a) * t
+        };
+    }
 };
 
 } // namespace HouseEngine::UI

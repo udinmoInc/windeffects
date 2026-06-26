@@ -37,15 +37,20 @@ bool UIRenderer::Init(const std::shared_ptr<VulkanContext>& context, VkRenderPas
 
     // 2. Initialize Font Atlas
     m_FontAtlas = std::make_shared<FontAtlas>();
-    if (!m_FontAtlas->Init(m_Context)) {
+    if (!m_FontAtlas->Init(m_Context, "Inter-Regular.ttf", 32, 96, 512, 512)) {
         return false;
+    }
+    
+    // 2.b Initialize Icon Atlas (Material Icons Classic, starting at E000, 4096 chars)
+    m_IconAtlas = std::make_shared<FontAtlas>();
+    if (!m_IconAtlas->Init(m_Context, "MaterialIcons-Regular.ttf", 0xE000, 4096, 1024, 1024)) {
+        HE_ERROR("UIRenderer: Failed to load icon atlas, icons will not render.");
     }
 
     // 3. Create Dummy White Texture
     CreateDummyTexture();
 
     // 4. Create font descriptor set
-    m_FontAtlas->Init(m_Context); // Re-assure init
     
     // Register textures for Font and Dummy
     m_DummyDescriptorSet = RegisterTexture(m_DummyImageView, m_DummySampler);
@@ -75,6 +80,10 @@ bool UIRenderer::Init(const std::shared_ptr<VulkanContext>& context, VkRenderPas
     } else {
         // Fallback: register via manual layout
         m_FontAtlas->GetDescriptorSetRef() = RegisterTexture(m_FontAtlas->GetImageView(), m_FontAtlas->GetSampler());
+    }
+
+    if (m_IconAtlas) {
+        m_IconAtlas->GetDescriptorSetRef() = RegisterTexture(m_IconAtlas->GetImageView(), m_IconAtlas->GetSampler());
     }
 
     // 5. Create pipeline
@@ -192,27 +201,43 @@ void UIRenderer::CreatePipeline(VkRenderPass renderPass) {
     bindingDescription.stride = sizeof(UIVertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+    std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
+
+    // Position (vec2)
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
     attributeDescriptions[0].offset = offsetof(UIVertex, pos);
 
+    // UV (vec2)
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
     attributeDescriptions[1].offset = offsetof(UIVertex, uv);
 
+    // Color (vec4)
     attributeDescriptions[2].binding = 0;
     attributeDescriptions[2].location = 2;
     attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     attributeDescriptions[2].offset = offsetof(UIVertex, color);
 
+    // SDF Rect (vec4)
+    attributeDescriptions[3].binding = 0;
+    attributeDescriptions[3].location = 3;
+    attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attributeDescriptions[3].offset = offsetof(UIVertex, sdfRect);
+
+    // SDF Params (vec4)
+    attributeDescriptions[4].binding = 0;
+    attributeDescriptions[4].location = 4;
+    attributeDescriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attributeDescriptions[4].offset = offsetof(UIVertex, sdfParams);
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.vertexAttributeDescriptionCount = 5;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -349,6 +374,8 @@ void UIRenderer::BuildGeometry(const std::vector<DrawCommand>& commands, uint32_
         VkDescriptorSet texSet = m_DummyDescriptorSet;
         if (cmd.type == DrawCommandType::Text) {
             texSet = m_FontAtlas->GetDescriptorSet();
+        } else if (cmd.type == DrawCommandType::Icon && m_IconAtlas) {
+            texSet = m_IconAtlas->GetDescriptorSet();
         } else if (cmd.type == DrawCommandType::Texture) {
             texSet = cmd.textureId;
         }
@@ -362,12 +389,14 @@ void UIRenderer::BuildGeometry(const std::vector<DrawCommand>& commands, uint32_
             float w = cmd.rect.width;
             float h = cmd.rect.height;
 
-            UIVertex v0{ {x,     y},     {0.0f, 0.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-            UIVertex v1{ {x + w, y},     {1.0f, 0.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-            UIVertex v2{ {x + w, y + h}, {1.0f, 1.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-            UIVertex v3{ {x,     y + h}, {0.0f, 1.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
+            float type = (cmd.type == DrawCommandType::Rect && cmd.borderRadius > 0.0f) ? 1.0f : 0.0f;
 
-            // If it's a flat rect, map to center of dummy texture
+            UIVertex v0{ {x,     y},     {0.0f, 0.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {x, y, w, h}, {cmd.borderRadius, type, 0.0f, 0.0f} };
+            UIVertex v1{ {x + w, y},     {1.0f, 0.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {x, y, w, h}, {cmd.borderRadius, type, 0.0f, 0.0f} };
+            UIVertex v2{ {x + w, y + h}, {1.0f, 1.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {x, y, w, h}, {cmd.borderRadius, type, 0.0f, 0.0f} };
+            UIVertex v3{ {x,     y + h}, {0.0f, 1.0f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {x, y, w, h}, {cmd.borderRadius, type, 0.0f, 0.0f} };
+
+            // If it's a flat rect (textured or not), map to center of dummy texture
             if (cmd.type == DrawCommandType::Rect) {
                 v0.uv[0] = 0.5f; v0.uv[1] = 0.5f;
                 v1.uv[0] = 0.5f; v1.uv[1] = 0.5f;
@@ -399,10 +428,15 @@ void UIRenderer::BuildGeometry(const std::vector<DrawCommand>& commands, uint32_
                 float px = -dy * (cmd.thickness * 0.5f);
                 float py = dx * (cmd.thickness * 0.5f);
 
-                UIVertex v0{ {cmd.lineStart.x + px, cmd.lineStart.y + py}, {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-                UIVertex v1{ {cmd.lineStart.x - px, cmd.lineStart.y - py}, {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-                UIVertex v2{ {cmd.lineEnd.x - px,   cmd.lineEnd.y - py},   {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-                UIVertex v3{ {cmd.lineEnd.x + px,   cmd.lineEnd.y + py},   {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
+                float sx = cmd.lineStart.x;
+                float sy = cmd.lineStart.y;
+                float sw = dx * len;
+                float sh = dy * len;
+                
+                UIVertex v0{ {cmd.lineStart.x + px, cmd.lineStart.y + py}, {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {sx, sy, sw, sh}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                UIVertex v1{ {cmd.lineStart.x - px, cmd.lineStart.y - py}, {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {sx, sy, sw, sh}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                UIVertex v2{ {cmd.lineEnd.x - px,   cmd.lineEnd.y - py},   {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {sx, sy, sw, sh}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                UIVertex v3{ {cmd.lineEnd.x + px,   cmd.lineEnd.y + py},   {0.5f, 0.5f}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {sx, sy, sw, sh}, {0.0f, 0.0f, 0.0f, 0.0f} };
 
                 m_Vertices.push_back(v0);
                 m_Vertices.push_back(v1);
@@ -419,33 +453,66 @@ void UIRenderer::BuildGeometry(const std::vector<DrawCommand>& commands, uint32_
                 cmdIndexCount = 6;
             }
 
-        } else if (cmd.type == DrawCommandType::Text) {
+        } else if (cmd.type == DrawCommandType::Text || cmd.type == DrawCommandType::Icon) {
             float xpos = cmd.rect.x;
             float ypos = cmd.rect.y;
 
-            for (char c : cmd.text) {
+            if (cmd.type == DrawCommandType::Icon && m_IconAtlas) {
                 GlyphInfo q;
-                if (m_FontAtlas->GetCharQuad(c, &xpos, &ypos, q)) {
+                if (m_IconAtlas->GetCharQuad(cmd.codepoint, &xpos, &ypos, q)) {
                     uint32_t charStart = static_cast<uint32_t>(m_Vertices.size());
+                    
+                    // Slightly scale the icon up since font atlas baking might make it small
+                    float scale = cmd.fontSize / m_IconAtlas->GetFontHeight();
+                    float w = (q.x1 - q.x0) * scale;
+                    float h = (q.y1 - q.y0) * scale;
+                    
+                    // We apply an offset to center the icon vertically
+                    float yoffset = (cmd.fontSize - h) * 0.5f;
+                    
+                    // Adjust position
+                    float qx0 = cmd.rect.x;
+                    float qy0 = cmd.rect.y + yoffset;
+                    float qx1 = qx0 + w;
+                    float qy1 = qy0 + h;
 
-                    UIVertex v0{ {q.x0, q.y0}, {q.u0, q.v0}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-                    UIVertex v1{ {q.x1, q.y0}, {q.u1, q.v0}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-                    UIVertex v2{ {q.x1, q.y1}, {q.u1, q.v1}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
-                    UIVertex v3{ {q.x0, q.y1}, {q.u0, q.v1}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a} };
+                    UIVertex v0{ {qx0, qy0}, {q.u0, q.v0}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {qx0, qy0, w, h}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                    UIVertex v1{ {qx1, qy0}, {q.u1, q.v0}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {qx0, qy0, w, h}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                    UIVertex v2{ {qx1, qy1}, {q.u1, q.v1}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {qx0, qy0, w, h}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                    UIVertex v3{ {qx0, qy1}, {q.u0, q.v1}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {qx0, qy0, w, h}, {0.0f, 0.0f, 0.0f, 0.0f} };
 
-                    m_Vertices.push_back(v0);
-                    m_Vertices.push_back(v1);
-                    m_Vertices.push_back(v2);
-                    m_Vertices.push_back(v3);
+                    m_Vertices.push_back(v0); m_Vertices.push_back(v1); m_Vertices.push_back(v2); m_Vertices.push_back(v3);
 
-                    m_Indices.push_back(charStart + 0);
-                    m_Indices.push_back(charStart + 1);
-                    m_Indices.push_back(charStart + 2);
-                    m_Indices.push_back(charStart + 2);
-                    m_Indices.push_back(charStart + 3);
-                    m_Indices.push_back(charStart + 0);
+                    m_Indices.push_back(charStart + 0); m_Indices.push_back(charStart + 1); m_Indices.push_back(charStart + 2);
+                    m_Indices.push_back(charStart + 2); m_Indices.push_back(charStart + 3); m_Indices.push_back(charStart + 0);
 
                     cmdIndexCount += 6;
+                }
+            } else if (cmd.type == DrawCommandType::Text) {
+                for (char c : cmd.text) {
+                    GlyphInfo q;
+                    if (m_FontAtlas->GetCharQuad(c, &xpos, &ypos, q)) {
+                        uint32_t charStart = static_cast<uint32_t>(m_Vertices.size());
+
+                        UIVertex v0{ {q.x0, q.y0}, {q.u0, q.v0}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                        UIVertex v1{ {q.x1, q.y0}, {q.u1, q.v0}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                        UIVertex v2{ {q.x1, q.y1}, {q.u1, q.v1}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0}, {0.0f, 0.0f, 0.0f, 0.0f} };
+                        UIVertex v3{ {q.x0, q.y1}, {q.u0, q.v1}, {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a}, {q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0}, {0.0f, 0.0f, 0.0f, 0.0f} };
+
+                        m_Vertices.push_back(v0);
+                        m_Vertices.push_back(v1);
+                        m_Vertices.push_back(v2);
+                        m_Vertices.push_back(v3);
+
+                        m_Indices.push_back(charStart + 0);
+                        m_Indices.push_back(charStart + 1);
+                        m_Indices.push_back(charStart + 2);
+                        m_Indices.push_back(charStart + 2);
+                        m_Indices.push_back(charStart + 3);
+                        m_Indices.push_back(charStart + 0);
+
+                        cmdIndexCount += 6;
+                    }
                 }
             }
         }
@@ -544,16 +611,10 @@ void UIRenderer::Render(VkCommandBuffer cmd, uint32_t width, uint32_t height, co
     BuildGeometry(paintCtx.GetCommands(), width, height);
     UpdateBuffers();
 
-    if (m_Vertices.empty() || m_Batches.empty()) return;
-
-    // 3. Issue Vulkan draw commands
+    // 3. Always bind pipeline and set dynamic state even if no geometry.
+    //    An early return here would leave the active render pass open,
+    //    causing vkQueueSubmit to fail with VK_ERROR_DEVICE_LOST.
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
-
-    // Bind Vertex & Index buffers
-    VkBuffer vertexBuffers[] = { m_VertexBuffer };
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(cmd, m_IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // Viewport
     VkViewport viewport{};
@@ -565,6 +626,12 @@ void UIRenderer::Render(VkCommandBuffer cmd, uint32_t width, uint32_t height, co
     viewport.maxDepth = 1.0f;
     vkCmdSetViewport(cmd, 0, 1, &viewport);
 
+    // Full-screen default scissor
+    VkRect2D fullScissor{};
+    fullScissor.offset = { 0, 0 };
+    fullScissor.extent = { width, height };
+    vkCmdSetScissor(cmd, 0, 1, &fullScissor);
+
     // Push Constants (Scale & Translate to NDC)
     float pushConstants[4];
     pushConstants[0] = 2.0f / static_cast<float>(width);
@@ -573,7 +640,15 @@ void UIRenderer::Render(VkCommandBuffer cmd, uint32_t width, uint32_t height, co
     pushConstants[3] = -1.0f;
     vkCmdPushConstants(cmd, m_PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 4, pushConstants);
 
-    // Draw Batches
+    if (m_Vertices.empty() || m_Batches.empty()) return;
+
+    // Bind Vertex & Index buffers
+    VkBuffer vertexBuffers[] = { m_VertexBuffer };
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(cmd, m_IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+    // 4. Draw Batches
     for (const auto& batch : m_Batches) {
         // Apply Scissor clip rectangle
         VkRect2D scissor{};
@@ -582,17 +657,20 @@ void UIRenderer::Render(VkCommandBuffer cmd, uint32_t width, uint32_t height, co
         scissor.extent.width = static_cast<uint32_t>(batch.scissor.width);
         scissor.extent.height = static_cast<uint32_t>(batch.scissor.height);
 
-        // Sanity clamp scissor to viewport
+        // Sanity clamp scissor to viewport bounds
         if (scissor.offset.x < 0) scissor.offset.x = 0;
         if (scissor.offset.y < 0) scissor.offset.y = 0;
         if (scissor.offset.x + static_cast<int32_t>(scissor.extent.width) > static_cast<int32_t>(width)) {
             int32_t diff = static_cast<int32_t>(width) - scissor.offset.x;
-            scissor.extent.width = (diff > 0) ? diff : 0;
+            scissor.extent.width = (diff > 0) ? static_cast<uint32_t>(diff) : 0u;
         }
         if (scissor.offset.y + static_cast<int32_t>(scissor.extent.height) > static_cast<int32_t>(height)) {
             int32_t diff = static_cast<int32_t>(height) - scissor.offset.y;
-            scissor.extent.height = (diff > 0) ? diff : 0;
+            scissor.extent.height = (diff > 0) ? static_cast<uint32_t>(diff) : 0u;
         }
+
+        // Skip degenerate batches
+        if (scissor.extent.width == 0 || scissor.extent.height == 0) continue;
 
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
@@ -645,6 +723,11 @@ void UIRenderer::Shutdown() {
     if (m_FontAtlas) {
         m_FontAtlas->Shutdown();
         m_FontAtlas.reset();
+    }
+    
+    if (m_IconAtlas) {
+        m_IconAtlas->Shutdown();
+        m_IconAtlas.reset();
     }
 
     if (m_Pipeline != VK_NULL_HANDLE) {
