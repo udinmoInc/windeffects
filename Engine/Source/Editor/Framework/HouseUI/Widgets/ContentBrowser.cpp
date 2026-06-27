@@ -19,7 +19,7 @@ Size ContentBrowser::Measure(const Size& availableSize) {
     // Temporarily set width so CalculateGridLayout computes correct rows
     m_Geometry.width = std::max(1.0f, availableSize.width);
     
-    if (m_ViewMode == ContentViewMode::Grid) {
+    if (m_Model->viewMode == ContentViewMode::Grid) {
         CalculateGridLayout();
     } else {
         CalculateListLayout();
@@ -39,7 +39,7 @@ Size ContentBrowser::Measure(const Size& availableSize) {
 void ContentBrowser::Arrange(const Rect& allottedRect) {
     m_Geometry = allottedRect;
     
-    if (m_ViewMode == ContentViewMode::Grid) {
+    if (m_Model->viewMode == ContentViewMode::Grid) {
         CalculateGridLayout();
     } else {
         CalculateListLayout();
@@ -67,7 +67,7 @@ void ContentBrowser::Paint(PaintContext& context) {
             context.DrawRoundedRect(renderItem.geometry, Color{0.188f, 0.188f, 0.188f, 1.0f}, 4.0f);
         }
         
-        if (m_ViewMode == ContentViewMode::Grid) {
+        if (m_Model->viewMode == ContentViewMode::Grid) {
             // Draw thumbnail/icon (48x48)
             float iconSize = 48.0f; // m_ThumbnailSize
             float iconX = renderItem.geometry.x + (m_GridItemSize - iconSize) / 2.0f;
@@ -144,7 +144,7 @@ void ContentBrowser::Paint(PaintContext& context) {
     }
     
     // Draw drag ghost
-    if (m_IsDragging && !m_SelectedIds.empty()) {
+    if (m_IsDragging && !m_Model->selectedIdss.empty()) {
         // Find the first selected item to use as a ghost
         for (const auto& renderItem : m_RenderList) {
             if (IsSelected(renderItem.item.id)) {
@@ -159,8 +159,8 @@ void ContentBrowser::Paint(PaintContext& context) {
                 }
                 
                 // Draw badge with count if multiple
-                if (m_SelectedIds.size() > 1) {
-                    std::string countStr = std::to_string(m_SelectedIds.size());
+                if (m_Model->selectedIdss.size() > 1) {
+                    std::string countStr = std::to_string(m_Model->selectedIdss.size());
                     Rect badgeRect{ ghostRect.x + ghostRect.width - 24.0f, ghostRect.y - 8.0f, 32.0f, 20.0f };
                     context.DrawRoundedRect(badgeRect, Color{0.9f, 0.2f, 0.2f, 1.0f}, 10.0f);
                     context.DrawText(countStr, Point{badgeRect.x + 8.0f, badgeRect.y + 2.0f}, Color::White(), 12.0f);
@@ -200,7 +200,7 @@ void ContentBrowser::OnMouseDown(const MouseEvent& event) {
                     int minIdx = std::min(startIdx, endIdx);
                     int maxIdx = std::max(startIdx, endIdx);
                     for (int i = minIdx; i <= maxIdx; ++i) {
-                        m_SelectedIds.push_back(m_RenderList[i].item.id);
+                        m_Model->selectedIdss.push_back(m_RenderList[i].item.id);
                     }
                     m_LastSelectedId = renderItem->item.id;
                 } else {
@@ -315,7 +315,7 @@ void ContentBrowser::OnMouseUp(const MouseEvent& event) {
 }
 
 void ContentBrowser::OnMouseWheel(const MouseEvent& event) {
-    float scrollAmount = event.wheelDeltaY * (m_ViewMode == ContentViewMode::Grid ? m_GridItemSize : m_ListRowHeight) * 0.5f;
+    float scrollAmount = event.wheelDeltaY * (if (m_Controller) m_Controller->SetViewMode(= ContentViewMode::Grid ? m_GridItemSize : m_ListRowHeight) * 0.5f);
     m_ScrollOffset -= scrollAmount;
     
     // Clamp scroll
@@ -331,54 +331,54 @@ void ContentBrowser::OnKeyDown(const KeyEvent& event) {
 }
 
 void ContentBrowser::AddItem(const ContentItem& item) {
-    m_Items.push_back(item);
+    m_Model->items.push_back(item);
     BuildRenderList();
 }
 
 void ContentBrowser::RemoveItem(const std::string& id) {
-    m_Items.erase(
-        std::remove_if(m_Items.begin(), m_Items.end(),
+    m_Model->items.erase(
+        std::remove_if(m_Model->items.begin(), m_Model->items.end(),
             [&id](const ContentItem& item) { return item.id == id; }),
-        m_Items.end()
+        m_Model->items.end()
     );
     BuildRenderList();
 }
 
 void ContentBrowser::Clear() {
-    m_Items.clear();
+    m_Model->items.clear();
     m_RenderList.clear();
-    m_SelectedIds.clear();
+    m_Model->selectedIdss.clear();
     m_LastSelectedId.clear();
     m_HoveredId.clear();
     m_ScrollOffset = 0.0f;
 }
 
 void ContentBrowser::SetSelectedId(const std::string& id) {
-    m_SelectedIds.clear();
-    m_SelectedIds.push_back(id);
+    m_Model->selectedIdss.clear();
+    m_Model->selectedIdss.push_back(id);
     m_LastSelectedId = id;
 }
 
 void ContentBrowser::AddToSelection(const std::string& id) {
     if (!IsSelected(id)) {
-        m_SelectedIds.push_back(id);
+        m_Model->selectedIdss.push_back(id);
     }
     m_LastSelectedId = id;
 }
 
 void ContentBrowser::RemoveFromSelection(const std::string& id) {
-    m_SelectedIds.erase(
-        std::remove(m_SelectedIds.begin(), m_SelectedIds.end(), id),
-        m_SelectedIds.end()
+    m_Model->selectedIdss.erase(
+        std::remove(m_Model->selectedIdss.begin(), m_Model->selectedIdss.end(), id),
+        m_Model->selectedIdss.end()
     );
 }
 
 bool ContentBrowser::IsSelected(const std::string& id) const {
-    return std::find(m_SelectedIds.begin(), m_SelectedIds.end(), id) != m_SelectedIds.end();
+    return std::find(m_Model->selectedIdss.begin(), m_Model->selectedIdss.end(), id) != m_Model->selectedIdss.end();
 }
 
 void ContentBrowser::UpdateItemIcon(const std::string& id, VkDescriptorSet textureId) {
-    for (auto& item : m_Items) {
+    for (auto& item : m_Model->items) {
         if (item.id == id) {
             item.iconTexture = textureId;
             // Also update the render list if it's currently built
@@ -394,19 +394,19 @@ void ContentBrowser::UpdateItemIcon(const std::string& id, VkDescriptorSet textu
 }
 
 void ContentBrowser::SetFilterText(const std::string& filterText) {
-    m_FilterText = filterText;
-    std::transform(m_FilterText.begin(), m_FilterText.end(), m_FilterText.begin(), ::tolower);
+    if (m_Controller) m_Controller->SetFilterText(filterText);
+    std::transform(m_Model->filterText.begin(), m_Model->filterText.end(), m_Model->filterText.begin(), ::tolower);
     BuildRenderList();
 }
 
 void ContentBrowser::BuildRenderList() {
     m_RenderList.clear();
     
-    for (const auto& item : m_Items) {
-        if (!m_FilterText.empty()) {
+    for (const auto& item : m_Model->items) {
+        if (!m_Model->filterText.empty()) {
             std::string itemNameLower = item.name;
             std::transform(itemNameLower.begin(), itemNameLower.end(), itemNameLower.begin(), ::tolower);
-            if (itemNameLower.find(m_FilterText) == std::string::npos) {
+            if (itemNameLower.find(m_Model->filterText) == std::string::npos) {
                 continue;
             }
         }
@@ -415,8 +415,8 @@ void ContentBrowser::BuildRenderList() {
             if (m_OnItemNeedsThumbnail) {
                 m_OnItemNeedsThumbnail(item.id, item.type, item.path);
             }
-            // We need to mark the original item in m_Items as requested so we don't spam
-            for (auto& origItem : m_Items) {
+            // We need to mark the original item in m_Model->items as requested so we don't spam
+            for (auto& origItem : m_Model->items) {
                 if (origItem.id == item.id) {
                     origItem.thumbnailRequested = true;
                     break;
