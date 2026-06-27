@@ -50,19 +50,19 @@ void Panel::Arrange(const Rect& allottedRect) {
 
 void Panel::Paint(PaintContext& context) {
     // Draw panel background
-    context.DrawRoundedRect(m_Geometry, m_Style.background.color, m_Style.background.cornerRadius);
+    context.DrawRoundedRect(m_Geometry, m_Style.background.color, 0.0f); // No rounded corners
     
-    // Draw panel border
-    context.DrawRoundedRectOutline(m_Geometry, m_Style.border.color, m_Style.border.width, m_Style.background.cornerRadius);
+    // Minimal or no border
+    // context.DrawRoundedRectOutline(m_Geometry, m_Style.border.color, m_Style.border.width, m_Style.background.cornerRadius);
     
     // Draw header background
-    Color headerBg = m_HeaderStyle.background.color;
+    Color headerBg = Theme::Get().HeaderBackground;
     if (m_HeaderHovered && m_Collapsible) {
         headerBg = Theme::Get().HoverOverlay;
     }
-    context.DrawRoundedRect(m_HeaderRect, headerBg, m_Style.background.cornerRadius);
+    context.DrawRect(m_HeaderRect, headerBg); // Flat rect
     
-    // Draw separator line below header
+    // Draw subtle separator line below header
     Rect separatorRect{
         m_HeaderRect.x,
         m_HeaderRect.y + m_HeaderRect.height - 1.0f,
@@ -84,9 +84,10 @@ void Panel::Paint(PaintContext& context) {
     
     // Draw title
     float titleX = m_HeaderRect.x + (m_Collapsible ? 22.0f : 8.0f);
-    float textSize = Theme::Get().TextSizeHeader;
+    float textSize = Theme::Get().TextSizeSection;
     float titleY = m_HeaderRect.y + (m_HeaderHeight - textSize) / 2.0f;
-    context.DrawText(m_Title, Point{ titleX, titleY }, Theme::Get().TextPrimary, textSize, true);
+    Color titleColor = Color{ 0.815f, 0.815f, 0.815f, 1.0f }; // #D0D0D0
+    context.DrawText(m_Title, Point{ titleX, titleY }, titleColor, textSize, true);
     
     // Draw header actions
     for (const auto& action : m_HeaderActions) {

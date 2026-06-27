@@ -60,7 +60,7 @@ private:
     bool m_Collapsible = true;
     bool m_HeaderHovered = false;
 
-    float m_HeaderHeight = 24.0f; // Thin header standard
+    float m_HeaderHeight = 28.0f; // Thin header standard
     float m_ActionIconSize = 14.0f;
     float m_ActionSpacing = 4.0f;
 

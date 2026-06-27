@@ -20,10 +20,10 @@ public:
     // Quick access
     void SetFPS(float fps);
     void SetGPU(const std::string& name);
+    void SetCPU(const std::string& cpu);
+    void SetPing(int ms);
     void SetMemory(float gb);
-    void SetDrawCalls(int calls);
     void SetCompileStatus(const std::string& status);
-    void SetGitBranch(const std::string& branch);
 
     void SetHeight(float height) { m_Height = height; }
 
@@ -32,10 +32,10 @@ private:
 
     std::shared_ptr<class Label> m_FPSLabel;
     std::shared_ptr<class Label> m_GPULabel;
+    std::shared_ptr<class Label> m_CPULabel;
     std::shared_ptr<class Label> m_MemoryLabel;
-    std::shared_ptr<class Label> m_DrawCallsLabel;
+    std::shared_ptr<class Label> m_PingLabel;
     std::shared_ptr<class Label> m_CompileLabel;
-    std::shared_ptr<class Label> m_GitLabel;
 };
 
 } // namespace HouseEngine::UI

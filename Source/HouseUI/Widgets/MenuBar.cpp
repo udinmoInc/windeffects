@@ -1,4 +1,6 @@
 #include "MenuBar.hpp"
+#include "DropdownMenu.hpp"
+#include "../Layout/OverlayManager.hpp"
 #include "../Core/PaintContext.hpp"
 #include "../Core/Theme.hpp"
 #include "../Core/Icon.hpp"
@@ -11,12 +13,14 @@ MenuBar::MenuBar()
 {}
 
 Size MenuBar::Measure(const Size& availableSize) {
-    float totalWidth = 8.0f; // initial padding
+    // The width requested is the width of all menus plus padding
+    float totalWidth = 4.0f; // initial padding
     for (const auto& menu : m_Menus) {
         float textWidth = menu.label.length() * 13.0f * 0.6f;
-        totalWidth += textWidth + 24.0f; // padding per item
+        totalWidth += textWidth + 12.0f; // padding per item
     }
-    return Size{ totalWidth, m_Height };
+    m_DesiredSize = Size{ totalWidth, m_Height };
+    return m_DesiredSize;
 }
 
 void MenuBar::Arrange(const Rect& allottedRect) {
@@ -25,41 +29,72 @@ void MenuBar::Arrange(const Rect& allottedRect) {
 }
 
 void MenuBar::Paint(PaintContext& context) {
-    
-    // Draw menu items
-    for (size_t i = 0; i < m_Menus.size(); ++i) {
-        const auto& menu = m_Menus[i];
+    // Draw visible menu items
+    auto drawMenu = [&](const MenuInfo& menu, int index) {
+        bool isActive = m_MenuOpen && index == m_HoveredMenu; // Approximation of active state
         
-        // Draw hover background
-        if (menu.hovered) {
-            context.DrawRoundedRect(menu.geometry, Theme::Get().HoverOverlay, 2.0f);
+        if (menu.hovered && !isActive) {
+            context.DrawRoundedRect(menu.geometry, Theme::Get().HoverOverlay, Theme::Get().CornerRadiusSmall);
         }
         
-        // Draw menu label
-        float textX = menu.geometry.x + 12.0f;
-        float textSize = Theme::Get().TextSizeBody;
+        if (isActive) {
+            Rect underlineRect = menu.geometry;
+            underlineRect.y += menu.geometry.height - 2.0f;
+            underlineRect.height = 2.0f;
+            context.DrawRect(underlineRect, Theme::Get().ActiveTabLine);
+        }
+        
+        float textX = menu.geometry.x + 6.0f; // 6px left padding
+        float textSize = Theme::Get().TextSizeMenu;
         float textY = menu.geometry.y + (menu.geometry.height - textSize) / 2.0f;
         
-        Color textColor = Theme::Get().TextPrimary;
-        context.DrawText(menu.label, Point{ textX, textY }, textColor, textSize);
+        context.DrawText(menu.label, Point{ textX, textY }, Theme::Get().TextPrimary, textSize);
+    };
+
+    for (size_t i = 0; i < m_VisibleMenus.size(); ++i) {
+        drawMenu(m_VisibleMenus[i], (int)i);
+    }
+    
+    if (m_ShowsMore) {
+        drawMenu(m_MoreMenu, (int)m_VisibleMenus.size());
     }
 }
 
 void MenuBar::OnMouseDown(const MouseEvent& event) {
     MenuInfo* menu = GetMenuAtPosition(event.position);
     if (menu) {
-        // Toggle menu open state
-        m_MenuOpen = !m_MenuOpen;
-        // TODO: Show menu popup
+        if (OverlayManager::Get()) {
+            bool wasOpen = m_MenuOpen;
+            OverlayManager::Get()->CloseAllPopups();
+            
+            // If it was already open and we clicked the *same* hovered menu, close it.
+            // If we clicked a different menu, or it wasn't open, open the new one.
+            if (wasOpen && menu->hovered) {
+                m_MenuOpen = false;
+            } else {
+                m_MenuOpen = true;
+                std::vector<std::shared_ptr<MenuItem>> itemsToShow = menu->items;
+                
+                // Show a placeholder if empty so user knows it works
+                if (itemsToShow.empty()) {
+                    auto emptyItem = std::make_shared<MenuItem>();
+                    emptyItem->label = "(Empty)";
+                    emptyItem->enabled = false;
+                    itemsToShow.push_back(emptyItem);
+                }
+                
+                auto dropdown = std::make_shared<DropdownMenu>(itemsToShow);
+                OverlayManager::Get()->ShowPopup(dropdown, Point{menu->geometry.x, menu->geometry.y + menu->geometry.height});
+            }
+        }
     }
 }
 
 void MenuBar::OnMouseMove(const MouseEvent& event) {
     MenuInfo* menu = GetMenuAtPosition(event.position);
     
-    for (auto& m : m_Menus) {
-        m.hovered = false;
-    }
+    for (auto& m : m_VisibleMenus) m.hovered = false;
+    m_MoreMenu.hovered = false;
     
     if (menu) {
         menu->hovered = true;
@@ -89,142 +124,66 @@ void MenuBar::Clear() {
 }
 
 void MenuBar::CalculateMenuGeometries() {
-    float x = m_Geometry.x + 8.0f;
+    float x = m_Geometry.x + 4.0f; // add initial padding
+    float availableWidth = m_Geometry.width;
+    float textSize = Theme::Get().TextSizeMenu;
     
-    for (auto& menu : m_Menus) {
-        float textSize = Theme::Get().TextSizeBody;
+    m_VisibleMenus.clear();
+    m_HiddenMenus.clear();
+    m_ShowsMore = false;
+    
+    // Calculate width of "More" menu
+    float moreWidth = std::string("More").length() * textSize * 0.6f + 12.0f;
+    
+    for (size_t i = 0; i < m_Menus.size(); ++i) {
+        auto& menu = m_Menus[i];
         float textWidth = menu.label.length() * textSize * 0.6f;
-        float width = textWidth + 24.0f; // padding
-        menu.geometry = Rect{ x, m_Geometry.y, width, m_Geometry.height };
-        x += width;
-    }
-}
-
-MenuBar::MenuInfo* MenuBar::GetMenuAtPosition(const Point& pos) {
-    for (auto& menu : m_Menus) {
-        if (pos.x >= menu.geometry.x && pos.x <= menu.geometry.x + menu.geometry.width &&
-            pos.y >= menu.geometry.y && pos.y <= menu.geometry.y + menu.geometry.height) {
-            return &menu;
+        float itemWidth = textWidth + 12.0f; // 6px left and right padding inside item
+        
+        bool isLast = (i == m_Menus.size() - 1);
+        float widthNeeded = isLast ? itemWidth : (itemWidth + moreWidth);
+        
+        // Never hide the first 3 items (File, Edit, View)
+        if (i >= 3 && (x - m_Geometry.x) + widthNeeded > availableWidth && !m_Menus.empty()) {
+            m_ShowsMore = true;
+            m_HiddenMenus.push_back(menu);
+        } else {
+            menu.geometry = Rect{ x, m_Geometry.y, itemWidth, m_Geometry.height };
+            m_VisibleMenus.push_back(menu);
+            x += itemWidth;
         }
     }
-    return nullptr;
-}
-
-// MenuPopup implementation
-MenuPopup::MenuPopup(const std::vector<std::shared_ptr<MenuItem>>& items)
-    : m_Items(items)
-    , m_Style(WidgetStyle::Panel())
-{}
-
-Size MenuPopup::Measure(const Size& availableSize) {
-    float maxWidth = m_MinWidth;
     
-    // Calculate max width from items
-    for (const auto& item : m_Items) {
-        float textWidth = item->label.length() * 13.0f * 0.6f;
-        float shortcutWidth = item->shortcut.length() * 12.0f * 0.6f;
-        float itemWidth = textWidth + shortcutWidth + 60.0f; // padding + icons
-        maxWidth = std::max(maxWidth, itemWidth);
-    }
-    
-    float totalHeight = static_cast<float>(m_Items.size()) * m_ItemHeight;
-    return Size{ maxWidth, totalHeight };
-}
-
-void MenuPopup::Arrange(const Rect& allottedRect) {
-    m_Geometry = allottedRect;
-}
-
-void MenuPopup::Paint(PaintContext& context) {
-    // Draw background with shadow
-    context.DrawRoundedRect(m_Geometry, m_Style.background.color, m_Style.background.cornerRadius);
-    context.DrawRoundedRectOutline(m_Geometry, m_Style.border.color, m_Style.border.width, m_Style.background.cornerRadius);
-    
-    // Draw menu items
-    float y = m_Geometry.y;
-    
-    for (size_t i = 0; i < m_Items.size(); ++i) {
-        const auto& item = m_Items[i];
-        
-        Rect itemRect{ m_Geometry.x, y, m_Geometry.width, m_ItemHeight };
-        
-        // Draw hover background
-        if (static_cast<int>(i) == m_HoveredItem && item->enabled) {
-            context.DrawRect(itemRect, Theme::Get().HoverOverlay);
-        }
-        
-        // Draw checkmark if checked
-        if (item->checked) {
-            float checkSize = 14.0f;
-            float checkX = itemRect.x + 8.0f;
-            float checkY = itemRect.y + (m_ItemHeight - checkSize) / 2.0f;
-            Rect checkRect{ checkX, checkY, checkSize, checkSize };
-            IconPainter::DrawIcon(context, Icons::Check, checkRect, Theme::Get().SelectedAccent);
-        }
-        
-        // Draw label
-        float labelX = itemRect.x + (item->checked ? 32.0f : 12.0f);
-        float labelY = itemRect.y + (m_ItemHeight - 13.0f) / 2.0f;
-        
-        Color textColor = item->enabled ? Theme::Get().TextPrimary : Theme::Get().TextSecondary * 0.5f;
-        context.DrawText(item->label, Point{ labelX, labelY }, textColor, 13.0f);
-        
-        // Draw shortcut
-        if (!item->shortcut.empty()) {
-            float shortcutX = itemRect.x + itemRect.width - item->shortcut.length() * 12.0f * 0.6f - 12.0f;
-            float shortcutY = itemRect.y + (m_ItemHeight - 12.0f) / 2.0f;
-            context.DrawText(item->shortcut, Point{ shortcutX, shortcutY }, Theme::Get().TextSecondary, 12.0f);
-        }
-        
-        // Draw submenu indicator
-        if (!item->submenu.empty()) {
-            float chevronSize = 12.0f;
-            float chevronX = itemRect.x + itemRect.width - chevronSize - 8.0f;
-            float chevronY = itemRect.y + (m_ItemHeight - chevronSize) / 2.0f;
-            Rect chevronRect{ chevronX, chevronY, chevronSize, chevronSize };
-            IconPainter::DrawIcon(context, Icons::ChevronRight, chevronRect, Theme::Get().TextSecondary);
-        }
-        
-        y += m_ItemHeight;
-    }
-}
-
-void MenuPopup::OnMouseDown(const MouseEvent& event) {
-    MenuItem* item = GetItemAtPosition(event.position);
-    if (item && item->enabled && item->onClick) {
-        item->onClick();
-    }
-}
-
-void MenuPopup::OnMouseMove(const MouseEvent& event) {
-    m_HoveredItem = -1;
-    
-    MenuItem* item = GetItemAtPosition(event.position);
-    if (item) {
-        // Find item index
-        for (size_t i = 0; i < m_Items.size(); ++i) {
-            if (m_Items[i].get() == item) {
-                m_HoveredItem = static_cast<int>(i);
-                break;
+    if (m_ShowsMore) {
+        m_MoreMenu.label = "More";
+        m_MoreMenu.geometry = Rect{ x, m_Geometry.y, moreWidth, m_Geometry.height };
+        m_MoreMenu.items.clear();
+        for (const auto& hidden : m_HiddenMenus) {
+            auto topLevelItem = std::make_shared<MenuItem>();
+            topLevelItem->label = hidden.label;
+            topLevelItem->submenu = hidden.items;
+            // Since DropdownMenu currently doesn't support submenus, we just provide the top-level items
+            // If they click a top level item that has a submenu, we should ideally show another popup.
+            // For now, let's flat-append them with a separator-like label if we want, or just add the submenus.
+            // Wait, the DropdownMenu doesn't render submenus. Let's just flat append them with prefix for now to make them usable.
+            for (const auto& item : hidden.items) {
+                auto prefixedItem = std::make_shared<MenuItem>(*item);
+                prefixedItem->label = hidden.label + " > " + item->label;
+                m_MoreMenu.items.push_back(prefixedItem);
             }
         }
     }
 }
 
-MenuItem* MenuPopup::GetItemAtPosition(const Point& pos) {
-    float y = m_Geometry.y;
-    
-    for (const auto& item : m_Items) {
-        Rect itemRect{ m_Geometry.x, y, m_Geometry.width, m_ItemHeight };
-        
-        if (pos.x >= itemRect.x && pos.x <= itemRect.x + itemRect.width &&
-            pos.y >= itemRect.y && pos.y <= itemRect.y + itemRect.height) {
-            return item.get();
+MenuBar::MenuInfo* MenuBar::GetMenuAtPosition(const Point& pos) {
+    for (auto& menu : m_VisibleMenus) {
+        if (menu.geometry.Contains(pos)) {
+            return &menu;
         }
-        
-        y += m_ItemHeight;
     }
-    
+    if (m_ShowsMore && m_MoreMenu.geometry.Contains(pos)) {
+        return &m_MoreMenu;
+    }
     return nullptr;
 }
 

@@ -14,6 +14,7 @@
 #include "HouseUI/Widgets/PropertyEditor.hpp"
 #include "HouseUI/Widgets/MenuBar.hpp"
 #include "HouseUI/Widgets/Toolbar.hpp"
+#include "HouseUI/Layout/OverlayManager.hpp"
 #include "HouseUI/Widgets/TabWidget.hpp"
 #include "HouseUI/Widgets/ViewportOverlay.hpp"
 #include "HouseUI/Widgets/ContentBrowser.hpp"
@@ -171,6 +172,16 @@ Editor::~Editor() {
     Shutdown();
 }
 
+#ifdef _WIN32
+#include <dwmapi.h>
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif
+#ifndef DWMWCP_ROUND
+#define DWMWCP_ROUND 2
+#endif
+#endif
+
 void Editor::InitSDL() {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         throw std::runtime_error("Failed to initialize SDL3!");
@@ -185,6 +196,15 @@ void Editor::InitSDL() {
     if (!m_Window) {
         throw std::runtime_error("Failed to create SDL3 window!");
     }
+
+#ifdef _WIN32
+    SDL_PropertiesID props = SDL_GetWindowProperties(m_Window);
+    HWND hwnd = (HWND)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    if (hwnd) {
+        int cornerPref = DWMWCP_ROUND;
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &cornerPref, sizeof(cornerPref));
+    }
+#endif
 
     SDL_SetWindowHitTest(m_Window, HitTestCallback, this);
 }
@@ -270,35 +290,53 @@ void Editor::BuildEditorUI() {
     std::vector<std::shared_ptr<UI::MenuItem>> helpItems;
     menuBar->AddMenu("Help", helpItems);
 
-    // 3. Main Toolbar
+    // ============================================================
+    // TOOLBAR - Industry-standard icons, UE5/Maya/Blender/Rider
+    // Play is the ONLY colored (blue) control. All others are neutral gray.
+    // Text labels for: Rotate, Build, Platform, Git, Perspective, Lit
+    // ============================================================
     auto toolbar = std::make_shared<UI::Toolbar>();
-    toolbar->SetHeight(48.0f); // 48px height
-    
-    // File
-    toolbar->AddTool(UI::Icons::DocumentName, "New", []() { /* TODO */ }, "New Scene");
-    toolbar->AddTool(UI::Icons::FolderName, "Open", []() { /* TODO */ }, "Open Scene");
-    toolbar->AddTool(UI::Icons::SaveName, "Save", []() { /* TODO */ }, "Save Scene");
-    toolbar->AddSeparator();
-    
-    // History
-    toolbar->AddTool(UI::Icons::UndoName, "Undo", []() { /* TODO */ }, "Undo");
-    toolbar->AddTool(UI::Icons::RedoName, "Redo", []() { /* TODO */ }, "Redo");
-    toolbar->AddSeparator();
+    toolbar->SetHeight(34.0f);
 
-    // Compile
-    toolbar->AddTool(UI::Icons::CodeName, "Compile", []() { /* TODO */ }, "Compile Code");
-    toolbar->AddTool(UI::Icons::BuildName, "Build", []() { /* TODO */ }, "Build Project");
-    toolbar->AddSeparator();
-    
-    // Playback
-    toolbar->AddTool(UI::Icons::PlayName, "Play", []() { /* TODO */ }, "Play", true); // isPlayButton = true
-    toolbar->AddTool(UI::Icons::PauseName, "Pause", []() { /* TODO */ }, "Pause");
-    toolbar->AddTool(UI::Icons::StopName, "Stop", []() { /* TODO */ }, "Stop");
-    toolbar->AddSeparator();
+    // --- Group 1: File Operations ---
+    toolbar->AddTool(UI::Icons::SaveName, "", []() { /* TODO */ }, "Save  (Ctrl+S)", false, UI::ToolbarAlignment::Left);
+    toolbar->AddTool(UI::Icons::UndoName, "", []() { /* TODO */ }, "Undo  (Ctrl+Z)", false, UI::ToolbarAlignment::Left);
+    toolbar->AddTool(UI::Icons::RedoName, "", []() { /* TODO */ }, "Redo  (Ctrl+Y)", false, UI::ToolbarAlignment::Left);
+    toolbar->AddSeparator(UI::ToolbarAlignment::Left);
 
-    // Package
-    toolbar->AddTool(UI::Icons::PackageName, "Package", []() { /* TODO */ }, "Package Project");
-    toolbar->AddTool(UI::Icons::LayersName, "Launch", []() { /* TODO */ }, "Launch Project");
+    // --- Group 2: Transform Tools (Select, Move, Rotate, Scale) ---
+    toolbar->AddTool(UI::Icons::CursorName, "",       []() { /* TODO */ }, "Select  (Q)",  false, UI::ToolbarAlignment::Left);
+    toolbar->AddTool(UI::Icons::MoveName,   "",       []() { /* TODO */ }, "Move  (W)",    false, UI::ToolbarAlignment::Left);
+    auto rotateBtn = toolbar->AddTool(UI::Icons::RotateName, "Rotate", []() { /* TODO */ }, "Rotate  (E)", false, UI::ToolbarAlignment::Left);
+    rotateBtn->SetIsDropdown(true);
+    toolbar->AddTool(UI::Icons::ScaleName,  "",       []() { /* TODO */ }, "Scale  (R)",   false, UI::ToolbarAlignment::Left);
+    toolbar->AddSeparator(UI::ToolbarAlignment::Left);
+
+    // --- Group 3: Snap & Grid ---
+    toolbar->AddTool(UI::Icons::SnapName,  "", []() { /* TODO */ }, "Toggle Snap to Grid", false, UI::ToolbarAlignment::Left);
+    toolbar->AddTool(UI::Icons::GridName,  "", []() { /* TODO */ }, "Toggle Grid Overlay",  false, UI::ToolbarAlignment::Left);
+
+    // --- Group 4: Runtime Controls (Center) ---
+    // Play = filled BLUE triangle (isPlayButton=true). Pause & Stop remain neutral gray.
+    toolbar->AddTool(UI::Icons::PlayName,  "", []() { /* TODO */ }, "Play  (Alt+P)",  true,  UI::ToolbarAlignment::Center);
+    toolbar->AddTool(UI::Icons::PauseName, "", []() { /* TODO */ }, "Pause  (Alt+P)", false, UI::ToolbarAlignment::Center);
+    toolbar->AddTool(UI::Icons::StopName,  "", []() { /* TODO */ }, "Stop  (Alt+S)",  false, UI::ToolbarAlignment::Center);
+    toolbar->AddSeparator(UI::ToolbarAlignment::Center);
+
+    // --- Group 5: Viewport Display Mode (Center, labeled + dropdown) ---
+    auto perspBtn = toolbar->AddTool(UI::Icons::CameraName, "Perspective", []() { /* TODO */ }, "Viewport Projection Mode", false, UI::ToolbarAlignment::Center);
+    perspBtn->SetIsDropdown(true);
+    auto litBtn = toolbar->AddTool(UI::Icons::LitName, "Lit", []() { /* TODO */ }, "Viewport Shading Mode", false, UI::ToolbarAlignment::Center);
+    litBtn->SetIsDropdown(true);
+
+    // --- Group 6: Build, Platform, Source Control (Right, all labeled + dropdown) ---
+    auto buildBtn = toolbar->AddTool(UI::Icons::BuildName,   "Build",    []() { /* TODO */ }, "Build Project  (Ctrl+Shift+B)", false, UI::ToolbarAlignment::Right);
+    buildBtn->SetIsDropdown(true);
+    auto platBtn = toolbar->AddTool(UI::Icons::LayersName,   "Platform", []() { /* TODO */ }, "Target Platform",               false, UI::ToolbarAlignment::Right);
+    platBtn->SetIsDropdown(true);
+    auto gitBtn = toolbar->AddTool(UI::Icons::RefreshName,   "Git",      []() { /* TODO */ }, "Source Control",                false, UI::ToolbarAlignment::Right);
+    gitBtn->SetIsDropdown(true);
+
     
     // Load SVG Logo
     VkDescriptorSet logoDesc = LoadSVGSingle(m_Context, m_UIRenderer.get(), 20, 20);
@@ -307,20 +345,24 @@ void Editor::BuildEditorUI() {
     m_TitleBar = std::make_shared<UI::TitleBar>(m_Window, "WindEffects Engine", logoDesc, menuBar);
     m_TitleBar->Construct();
     rootVBox->AddChild(m_TitleBar);
-    
-    // Add Row 2 (Main Toolbar)
-    toolbar->SetHeight(36.0f); // Make it 36px high as requested
+    // Note: Main Toolbar is now FULL WIDTH — added directly to rootVBox.
     rootVBox->AddChild(toolbar);
-
-    // 4. Main Splitter Panel (Left sidebar vs Right workspace)
-    auto mainSplitter = std::make_shared<UI::Splitter>(UI::Orientation::Horizontal, 0.20f);
     
-    // Left Sidebar: Outliner Panel
+    // ============================================================
+    // UE5-STYLE 3-COLUMN LAYOUT
+    // Left: World Outliner | Center: Toolbar+Viewport | Right: Details
+    // All three panel headers are aligned at the same top level.
+    // ============================================================
+    
+    // Outer horizontal splitter: Left column | Center+Right
+    auto outerSplitter = std::make_shared<UI::Splitter>(UI::Orientation::Horizontal, 0.20f);
+
+    // ---- LEFT COLUMN: World Outliner (full height) ----
     auto outlinerPanel = std::make_shared<UI::Panel>("World Outliner");
+    outlinerPanel->SetHeaderHeight(30.0f);
     
     auto treeView = std::make_shared<UI::TreeView>();
     treeView->SetOnSelectionChanged([this](const std::string& id) {
-        // Convert string ID to index for now
         try {
             int idx = std::stoi(id);
             m_Scene->SetSelectedEntityIndex(idx);
@@ -329,52 +371,29 @@ void Editor::BuildEditorUI() {
     });
     m_OutlinerTreeView = treeView;
     outlinerPanel->SetContent(treeView);
+    outerSplitter->SetFirstChild(outlinerPanel);
 
-    mainSplitter->SetFirstChild(outlinerPanel);
+    // ---- INNER HORIZONTAL SPLITTER: Center | Right Details ----
+    auto innerSplitter = std::make_shared<UI::Splitter>(UI::Orientation::Horizontal, 0.76f);
 
-    // Right Workspace (Center splits vs Right details)
-    auto workspaceRightSplitter = std::make_shared<UI::Splitter>(UI::Orientation::Horizontal, 0.75f);
+    // ---- CENTER COLUMN: Viewport + Bottom panels (toolbar is now full-width above) ----
+    auto centerVBox = std::make_shared<UI::VerticalBox>();
+    centerVBox->SetSpacing(0.0f);
 
-    // Center layout: Viewport (Top) vs Bottom panels
+    // Vertical splitter: Viewport tabs (top) vs Bottom panels (bottom)
     auto centerSplitter = std::make_shared<UI::Splitter>(UI::Orientation::Vertical, 0.70f);
 
-    // Main Tab Area
+    // Main Tab Area (Viewport, World, Blueprints, Animation, Material)
     auto mainTabWidget = std::make_shared<UI::TabWidget>();
     mainTabWidget->SetTabHeight(32.0f);
     
     mainTabWidget->AddTab("Viewport");
-    
     auto viewportContainer = std::make_shared<UI::VerticalBox>();
     viewportContainer->SetSpacing(0.0f);
-    
     m_ViewportWidget = std::make_shared<UI::ViewportWidget>(m_Renderer, m_Camera, m_Scene, m_UIRenderer.get());
-    
-    // Create Embedded Viewport Toolbar
-    auto viewportToolbar = std::make_shared<UI::Toolbar>();
-    viewportToolbar->SetHeight(32.0f); // 32px compact height
-    viewportToolbar->SetFloating(false);
-    
-    viewportToolbar->AddTool(UI::Icons::EyeName, "", []() { /* TODO */ }, "Move");
-    viewportToolbar->AddTool(UI::Icons::LayersName, "", []() { /* TODO */ }, "Rotate");
-    viewportToolbar->AddTool(UI::Icons::CubeName, "", []() { /* TODO */ }, "Scale");
-    viewportToolbar->AddSeparator();
-    viewportToolbar->AddTool(UI::Icons::PlaneName, "", []() { /* TODO */ }, "Local");
-    viewportToolbar->AddTool(UI::Icons::InfoName, "", []() { /* TODO */ }, "World");
-    viewportToolbar->AddTool(UI::Icons::SnapName, "", []() { /* TODO */ }, "Snap");
-    viewportToolbar->AddSeparator();
-    viewportToolbar->AddTool(UI::Icons::PerspectiveName, "", []() { /* TODO */ }, "Perspective");
-    viewportToolbar->AddTool(UI::Icons::LitName, "", []() { /* TODO */ }, "Lit");
-    viewportToolbar->AddTool(UI::Icons::CameraName, "", []() { /* TODO */ }, "Camera");
-    viewportToolbar->AddSeparator();
-    viewportToolbar->AddTool(UI::Icons::GridName, "", []() { /* TODO */ }, "Grid");
-    viewportToolbar->AddTool(UI::Icons::SettingsName, "", []() { /* TODO */ }, "Statistics");
-    
-    viewportContainer->AddChild(viewportToolbar);
     viewportContainer->AddChild(m_ViewportWidget);
-    
     mainTabWidget->SetTabContent(0, viewportContainer);
     
-    // Add stub tabs
     mainTabWidget->AddTab("World");
     mainTabWidget->SetTabContent(1, std::make_shared<UI::Panel>("World Settings"));
     
@@ -389,15 +408,12 @@ void Editor::BuildEditorUI() {
 
     centerSplitter->SetFirstChild(mainTabWidget);
     
-    // Bottom area: Content Browser and Console (Tabbed)
+    // Bottom area: Content Browser, Output Log, Console, Profiler
     auto bottomTabWidget = std::make_shared<UI::TabWidget>();
     bottomTabWidget->SetTabHeight(32.0f);
     
-    // Content Browser tab
     bottomTabWidget->AddTab("Content Browser");
     auto contentBrowser = std::make_shared<UI::ContentBrowser>();
-    
-    // Add some sample content (Folders)
     UI::ContentItem folder1{"0", "Maps", "folder", UI::Icons::FolderName, true, false};
     UI::ContentItem folder2{"1", "Materials", "folder", UI::Icons::FolderName, true, false};
     UI::ContentItem folder3{"2", "Meshes", "folder", UI::Icons::FolderName, true, false};
@@ -406,8 +422,6 @@ void Editor::BuildEditorUI() {
     contentBrowser->AddItem(folder2);
     contentBrowser->AddItem(folder3);
     contentBrowser->AddItem(folder4);
-    
-    // Add sample content (Assets)
     UI::ContentItem asset1{"10", "PlayerCharacter", "Blueprint", UI::Icons::DocumentName, false, true};
     UI::ContentItem asset2{"11", "M_Concrete", "Material", UI::Icons::MaterialName, false, false};
     UI::ContentItem asset3{"12", "SM_Crate", "StaticMesh", UI::Icons::CubeName, false, false};
@@ -418,10 +432,8 @@ void Editor::BuildEditorUI() {
     contentBrowser->AddItem(asset3);
     contentBrowser->AddItem(asset4);
     contentBrowser->AddItem(asset5);
-    
     bottomTabWidget->SetTabContent(0, contentBrowser);
     
-    // Output Log tab
     bottomTabWidget->AddTab("Output Log");
     auto logPanel = std::make_shared<UI::Panel>("Output Log");
     logPanel->SetCollapsible(false);
@@ -430,38 +442,41 @@ void Editor::BuildEditorUI() {
     logPanel->SetContent(m_ConsoleList);
     bottomTabWidget->SetTabContent(1, logPanel);
     
-    // Console tab
     bottomTabWidget->AddTab("Console");
     auto consolePanel = std::make_shared<UI::Panel>("Console");
     consolePanel->SetCollapsible(false);
     bottomTabWidget->SetTabContent(2, consolePanel);
 
-    // Profiler tab
     bottomTabWidget->AddTab("Profiler");
     auto profilerPanel = std::make_shared<UI::Panel>("Profiler Data");
     profilerPanel->SetCollapsible(false);
     bottomTabWidget->SetTabContent(3, profilerPanel);
     
     centerSplitter->SetSecondChild(bottomTabWidget);
-    workspaceRightSplitter->SetFirstChild(centerSplitter);
+    centerVBox->AddChild(centerSplitter);
+    innerSplitter->SetFirstChild(centerVBox);
 
-    // Right Sidebar: Details/Inspector Panel
+    // ---- RIGHT COLUMN: Details/Inspector (full height) ----
     auto inspectorPanel = std::make_shared<UI::Panel>("Details");
+    inspectorPanel->SetHeaderHeight(30.0f);
+    inspectorPanel->AddHeaderAction(UI::Icons::SearchName, []() { /* TODO: Search */ });
+    inspectorPanel->AddHeaderAction(UI::Icons::SettingsName, []() { /* TODO: Settings */ });
     auto propertyEditor = std::make_shared<UI::PropertyEditor>();
     m_PropertyEditor = propertyEditor;
     inspectorPanel->SetContent(propertyEditor);
+    innerSplitter->SetSecondChild(inspectorPanel);
 
-    workspaceRightSplitter->SetSecondChild(inspectorPanel);
-    mainSplitter->SetSecondChild(workspaceRightSplitter);
-
-    rootVBox->AddChild(mainSplitter);
+    outerSplitter->SetSecondChild(innerSplitter);
+    rootVBox->AddChild(outerSplitter);
     
     // 5. Status Bar
     auto statusBar = std::make_shared<UI::StatusBar>();
     statusBar->Construct();
     m_StatusBar = statusBar;
     rootVBox->AddChild(statusBar);
-    m_RootWidget = rootVBox;
+    auto overlayManager = std::make_shared<UI::OverlayManager>();
+    overlayManager->SetBaseWidget(rootVBox);
+    m_RootWidget = overlayManager;
 
     // Trigger initial panel populate
     UpdateOutlinerPanel();

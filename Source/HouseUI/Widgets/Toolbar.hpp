@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../Core/Widget.hpp"
+#include "../Layout/Box.hpp"
+#include "../Layout/Spacer.hpp"
 #include "../Core/Style.hpp"
 #include "../Core/Icon.hpp"
 #include "ToolButton.hpp"
@@ -10,6 +12,12 @@
 #include <vector>
 
 namespace HouseEngine::UI {
+
+enum class ToolbarAlignment {
+    Left,
+    Center,
+    Right
+};
 
 // Toolbar widget with icon buttons and grouping
 class Toolbar : public Widget {
@@ -22,9 +30,9 @@ public:
     void Paint(PaintContext& context) override;
 
     // Tool management
-    void AddTool(const std::string& iconName, const std::string& label, std::function<void()> onClick, const std::string& tooltip = "", bool isPlayButton = false);
-    void AddSeparator();
-    void AddGroup(const std::vector<std::pair<std::string, std::function<void()>>>& tools);
+    std::shared_ptr<ToolButton> AddTool(const std::string& iconName, const std::string& label, std::function<void()> onClick, const std::string& tooltip = "", bool isPlayButton = false, ToolbarAlignment align = ToolbarAlignment::Left);
+    void AddSeparator(ToolbarAlignment align = ToolbarAlignment::Left);
+    void AddWidget(std::shared_ptr<Widget> widget, ToolbarAlignment align = ToolbarAlignment::Left);
     void Clear();
 
     // Active tool management
@@ -39,10 +47,6 @@ public:
 private:
     struct ToolInfo {
         std::string iconName;
-        std::string label;
-        std::function<void()> onClick;
-        std::string tooltip;
-        bool isPlayButton = false;
         std::shared_ptr<Widget> button;
         bool isSeparator = false;
     };
@@ -50,31 +54,28 @@ private:
     std::vector<ToolInfo> m_Tools;
     std::string m_ActiveTool;
     
-    float m_Height = 52.0f;
-    float m_IconSize = 20.0f;
-    float m_Spacing = 4.0f;
-    float m_GroupSpacing = 12.0f;
+    std::shared_ptr<HorizontalBox> m_RootBox;
+    std::shared_ptr<HorizontalBox> m_LeftBox;
+    std::shared_ptr<HorizontalBox> m_CenterBox;
+    std::shared_ptr<HorizontalBox> m_RightBox;
+
+    float m_Height = 30.0f; // Ultra-thin AAA toolbar
+    float m_IconSize = 14.0f;
+    float m_Spacing = 2.0f;
     bool m_IsFloating = false;
 
     WidgetStyle m_Style;
 };
 
-// Toolbar group (visual grouping of tools)
-class ToolbarGroup : public Widget {
+// Separator for toolbar grouping
+class ToolbarSeparator : public Widget {
 public:
-    ToolbarGroup();
-    virtual ~ToolbarGroup() = default;
+    ToolbarSeparator();
+    virtual ~ToolbarSeparator() = default;
 
     Size Measure(const Size& availableSize) override;
     void Arrange(const Rect& allottedRect) override;
     void Paint(PaintContext& context) override;
-
-    void AddTool(const std::string& iconName, const std::string& label, std::function<void()> onClick, const std::string& tooltip = "");
-    void Clear();
-
-private:
-    std::vector<std::shared_ptr<ToolButton>> m_Tools;
-    float m_Spacing = 2.0f;
 };
 
 } // namespace HouseEngine::UI

@@ -56,33 +56,10 @@ private:
     bool m_MenuOpen = false;
 
     WidgetStyle m_Style;
-};
-
-// Menu popup widget (dropdown menu)
-class MenuPopup : public Widget {
-public:
-    MenuPopup(const std::vector<std::shared_ptr<MenuItem>>& items);
-    virtual ~MenuPopup() = default;
-
-    Size Measure(const Size& availableSize) override;
-    void Arrange(const Rect& allottedRect) override;
-    void Paint(PaintContext& context) override;
-
-    void OnMouseDown(const MouseEvent& event) override;
-    void OnMouseMove(const MouseEvent& event) override;
-
-    void SetPosition(const Point& pos) { m_Position = pos; }
-
-private:
-    MenuItem* GetItemAtPosition(const Point& pos);
-
-    std::vector<std::shared_ptr<MenuItem>> m_Items;
-    Point m_Position;
-    float m_ItemHeight = 28.0f;
-    float m_MinWidth = 180.0f;
-    int m_HoveredItem = -1;
-
-    WidgetStyle m_Style;
+    std::vector<MenuInfo> m_VisibleMenus;
+    std::vector<MenuInfo> m_HiddenMenus;
+    MenuInfo m_MoreMenu;
+    bool m_ShowsMore = false;
 };
 
 } // namespace HouseEngine::UI

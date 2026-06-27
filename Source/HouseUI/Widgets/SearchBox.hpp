@@ -46,7 +46,8 @@ private:
     std::string m_Placeholder = "Search...";
     size_t m_CaretPosition = 0;
     
-    float m_Height = 32.0f;
+    float m_Height = 24.0f;
+    float m_Width = 150.0f;
     float m_CaretBlinkTime = 0.0f;
     bool m_ShowCaret = true;
     

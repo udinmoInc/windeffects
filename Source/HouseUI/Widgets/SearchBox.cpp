@@ -11,7 +11,7 @@ SearchBox::SearchBox()
 {}
 
 Size SearchBox::Measure(const Size& availableSize) {
-    return Size{ 200.0f, m_Height };
+    return Size{ m_Width, m_Height };
 }
 
 void SearchBox::Arrange(const Rect& allottedRect) {
@@ -20,24 +20,25 @@ void SearchBox::Arrange(const Rect& allottedRect) {
 
 void SearchBox::Paint(PaintContext& context) {
     // Draw background
-    Color bgColor = m_Style.background.color;
+    Color bgColor = Color{ 0.137f, 0.137f, 0.137f, 1.0f }; // #232323
     if (IsFocused()) {
-        bgColor = Theme::Get().HoverOverlay;
+        bgColor = Theme::Get().HoverOverlay; // Keep hover behavior if any, or adjust
     }
     
-    context.DrawRoundedRect(m_Geometry, bgColor, m_Style.background.cornerRadius);
+    float cornerRadius = 4.0f;
+    context.DrawRoundedRect(m_Geometry, bgColor, cornerRadius);
     
     // Draw border
-    Color borderColor = m_Style.border.color;
+    Color borderColor = Color{ 1.0f, 1.0f, 1.0f, 0.06f }; // rgba(255,255,255,0.06)
     if (IsFocused()) {
         borderColor = Theme::Get().SelectedAccent;
     }
     
-    context.DrawRoundedRectOutline(m_Geometry, borderColor, m_Style.border.width, m_Style.background.cornerRadius);
+    context.DrawRoundedRectOutline(m_Geometry, borderColor, 1.0f, cornerRadius);
     
     // Draw search icon
-    float iconSize = 16.0f;
-    float iconX = m_Geometry.x + 8.0f;
+    float iconSize = 14.0f;
+    float iconX = m_Geometry.x + 8.0f; // 8px left padding
     float iconY = m_Geometry.y + (m_Height - iconSize) / 2.0f;
     
     Rect iconRect{ iconX, iconY, iconSize, iconSize };
@@ -47,15 +48,17 @@ void SearchBox::Paint(PaintContext& context) {
     Rect textRect = GetTextRect();
     
     if (m_Text.empty()) {
-        context.DrawText(m_Placeholder, Point{ textRect.x, textRect.y }, Theme::Get().TextSecondary * 0.6f, m_Style.text.size);
+        Color placeholderColor = Color{ 0.478f, 0.478f, 0.478f, 1.0f }; // #7A7A7A
+        context.DrawText(m_Placeholder, Point{ textRect.x, textRect.y }, placeholderColor, 12.0f);
     } else {
-        context.DrawText(m_Text, Point{ textRect.x, textRect.y }, m_Style.text.color, m_Style.text.size);
+        context.DrawText(m_Text, Point{ textRect.x, textRect.y }, m_Style.text.color, 12.0f);
         
         // Draw caret if focused
         if (IsFocused() && m_ShowCaret) {
-            float caretX = textRect.x + context.GetTextWidth(m_Text.substr(0, m_CaretPosition), m_Style.text.size);
+            float caretX = textRect.x + context.GetTextWidth(m_Text.substr(0, m_CaretPosition), 12.0f);
             float caretY = textRect.y;
-            float caretHeight = m_Style.text.size;
+            float caretHeight = 12.0f;
+
             
             Rect caretRect{ caretX, caretY, 1.5f, caretHeight };
             context.DrawRect(caretRect, Theme::Get().TextPrimary);
@@ -183,15 +186,15 @@ void SearchBox::UpdateCaretBlink(float deltaTime) {
 }
 
 Rect SearchBox::GetTextRect() const {
-    float iconSize = 16.0f;
-    float iconWidth = iconSize + 8.0f; // icon + padding
+    float iconSize = 14.0f;
+    float iconWidth = 8.0f + iconSize + 8.0f; // left padding + icon + gap
     float clearWidth = m_Text.empty() ? 0.0f : 24.0f;
     
     return Rect{
         m_Geometry.x + iconWidth,
-        m_Geometry.y + (m_Height - m_Style.text.size) / 2.0f,
+        m_Geometry.y + (m_Height - 12.0f) / 2.0f,
         m_Geometry.width - iconWidth - clearWidth - 8.0f,
-        m_Style.text.size
+        12.0f
     };
 }
 

@@ -16,8 +16,8 @@ namespace HouseEngine::UI {
 TitleBar::TitleBar(SDL_Window* window, const std::string& title, VkDescriptorSet logoSet, std::shared_ptr<MenuBar> menuBar)
     : m_Window(window), m_Title(title), m_LogoSet(logoSet), m_MenuBar(menuBar)
 {
-    SetPadding(Margin{ 8.0f, 0.0f, 8.0f, 0.0f });
-    SetSpacing(8.0f);
+    SetPadding(Margin{ 10.0f, 0.0f, 8.0f, 0.0f }); // 10px left margin
+    SetSpacing(4.0f); // 4px gap between logo and MenuBar
 }
 
 void TitleBar::Construct() {
@@ -26,14 +26,13 @@ void TitleBar::Construct() {
     if (m_LogoSet != VK_NULL_HANDLE) {
         auto img = std::make_shared<Image>(m_LogoSet);
         img->SetSize(Size{ 20.0f, 20.0f });
-        img->SetTintColor(Theme::Get().TextPrimary);
+        img->SetTintColor(Color{ 0.835f, 0.835f, 0.835f, 1.0f }); // #D5D5D5
         AddChild(img);
     } else {
         AddChild(std::make_shared<IconWidget>(Icons::CameraName, 20.0f));
     }
     
     if (m_MenuBar) {
-        // We do not want MenuBar to be huge, just natural size
         AddChild(m_MenuBar);
     } else {
         auto engineLabel = std::make_shared<Label>("WindEffects");
@@ -41,38 +40,57 @@ void TitleBar::Construct() {
         AddChild(engineLabel);
     }
 
-    // First Spacer to push Project Badge to center
+    // Only one Spacer to push right controls to right
     AddChild(std::make_shared<Spacer>());
 
-    // Center Container (Project Badge)
-    auto projectBadge = std::make_shared<Label>(m_Title);
-    projectBadge->SetStyle(TextStyle::Small());
-    AddChild(projectBadge);
-
-    // Second Spacer to push right controls to right
-    AddChild(std::make_shared<Spacer>());
 
     // Right Container
-    m_SearchWidget = std::make_shared<SearchBox>();
-    AddChild(m_SearchWidget);
-
+    auto searchBtn = std::make_shared<ToolButton>(Icons::SearchName, "");
     auto gitBtn = std::make_shared<ToolButton>(Icons::UndoName, "");
     auto notifBtn = std::make_shared<ToolButton>(Icons::InfoName, "");
     auto settingsBtn = std::make_shared<ToolButton>(Icons::SettingsName, "");
     auto profileBtn = std::make_shared<ToolButton>(Icons::PropertiesName, ""); // fallback for user
     
-    AddChild(gitBtn);
-    AddChild(notifBtn);
-    AddChild(settingsBtn);
-    AddChild(profileBtn);
+    searchBtn->SetButtonStyle(ToolButtonStyle::TitleBarTool);
+    gitBtn->SetButtonStyle(ToolButtonStyle::TitleBarTool);
+    notifBtn->SetButtonStyle(ToolButtonStyle::TitleBarTool);
+    settingsBtn->SetButtonStyle(ToolButtonStyle::TitleBarTool);
+    profileBtn->SetButtonStyle(ToolButtonStyle::TitleBarTool);
+    
+    m_SearchWidget = searchBtn;
 
-    m_MinimizeWidget = std::make_shared<ToolButton>(Icons::MinimizeName, "");
-    m_MaximizeWidget = std::make_shared<ToolButton>(Icons::MaximizeName, "");
-    m_CloseWidget = std::make_shared<ToolButton>(Icons::XName, "");
+    auto toolbarBox = std::make_shared<HorizontalBox>();
+    toolbarBox->SetSpacing(8.0f); // 8px gap between toolbar icons
+    toolbarBox->AddChild(searchBtn);
+    toolbarBox->AddChild(gitBtn);
+    toolbarBox->AddChild(notifBtn);
+    toolbarBox->AddChild(settingsBtn);
+    toolbarBox->AddChild(profileBtn);
 
-    AddChild(m_MinimizeWidget);
-    AddChild(m_MaximizeWidget);
-    AddChild(m_CloseWidget);
+    auto minimizeBtn = std::make_shared<ToolButton>(Icons::MinimizeName, "");
+    auto maximizeBtn = std::make_shared<ToolButton>(Icons::MaximizeName, "");
+    auto closeBtn = std::make_shared<ToolButton>(Icons::XName, "");
+    
+    minimizeBtn->SetButtonStyle(ToolButtonStyle::WindowControl);
+    maximizeBtn->SetButtonStyle(ToolButtonStyle::WindowControl);
+    closeBtn->SetButtonStyle(ToolButtonStyle::WindowClose);
+    
+    m_MinimizeWidget = minimizeBtn;
+    m_MaximizeWidget = maximizeBtn;
+    m_CloseWidget = closeBtn;
+    
+    auto windowControls = std::make_shared<HorizontalBox>();
+    windowControls->SetSpacing(2.0f); // 2px spacing for window controls
+    windowControls->AddChild(m_MinimizeWidget);
+    windowControls->AddChild(m_MaximizeWidget);
+    windowControls->AddChild(m_CloseWidget);
+
+    auto rightContainer = std::make_shared<HorizontalBox>();
+    rightContainer->SetSpacing(-28.0f); // -28px to aggressively close the gap between hit areas
+    rightContainer->AddChild(toolbarBox);
+    rightContainer->AddChild(windowControls);
+
+    AddChild(rightContainer);
 
     m_InteractableWidgets.push_back(m_SearchWidget);
     m_InteractableWidgets.push_back(gitBtn);
@@ -101,6 +119,13 @@ void TitleBar::Arrange(const Rect& allottedRect) {
 void TitleBar::Paint(PaintContext& context) {
     // Draw background
     context.DrawRect(m_Geometry, Theme::Get().HeaderBackground);
+    
+    // Draw centered title
+    float textSize = Theme::Get().TextSizeWindow; // 13px
+    float titleWidth = context.GetTextWidth(m_Title, textSize);
+    float textX = m_Geometry.x + (m_Geometry.width - titleWidth) / 2.0f;
+    float textY = m_Geometry.y + (m_Geometry.height - textSize) / 2.0f;
+    context.DrawText(m_Title, Point{textX, textY}, Theme::Get().TextWindowLabel, textSize, true);
     
     // Draw children
     HorizontalBox::Paint(context);

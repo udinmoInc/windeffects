@@ -237,6 +237,8 @@ list(APPEND SOURCES
     "Source/HouseUI/Widgets/ViewportOverlay.cpp"
     "Source/HouseUI/Widgets/ContentBrowser.cpp"
     "Source/HouseUI/Widgets/StatusBar.cpp"
+    "Source/HouseUI/Layout/OverlayManager.cpp"
+    "Source/HouseUI/Widgets/DropdownMenu.cpp"
 )
 
 # Shaders
@@ -275,7 +277,7 @@ if(MSVC)
     target_compile_options(WindEffects PRIVATE /W3 /permissive- /Z7)
     # Disable some noisy warnings for external libraries if needed
     target_compile_definitions(WindEffects PRIVATE _CRT_SECURE_NO_WARNINGS)
-    target_link_libraries(WindEffects PRIVATE dbghelp)
+    target_link_libraries(WindEffects PRIVATE dbghelp dwmapi)
 endif()
 
 # Set working directory for debugging

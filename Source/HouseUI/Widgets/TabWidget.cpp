@@ -47,7 +47,7 @@ void TabWidget::Arrange(const Rect& allottedRect) {
 void TabWidget::Paint(PaintContext& context) {
     // Draw tab bar background
     Rect tabBarRect{ m_Geometry.x, m_Geometry.y, m_Geometry.width, m_TabHeight };
-    context.DrawRect(tabBarRect, Theme::Get().ToolbarBackground);
+    context.DrawRect(tabBarRect, Theme::Get().PanelBackground);
     
     // Draw tabs
     for (size_t i = 0; i < m_Tabs.size(); ++i) {
@@ -58,34 +58,30 @@ void TabWidget::Paint(PaintContext& context) {
         const WidgetStyle& style = isActive ? m_ActiveTabStyle : m_TabStyle;
         
         // Draw tab background
-        Color bgColor = style.background.color;
+        Color bgColor = Color{0, 0, 0, 0}; // Transparent by default
         if (isHovered && !isActive) {
-            bgColor = style.backgroundHover.color;
+            bgColor = Theme::Get().HoverOverlay;
         }
         
-        context.DrawRoundedRect(tab.geometry, bgColor, style.background.cornerRadius);
+        if (bgColor.a > 0.001f) {
+            context.DrawRoundedRect(tab.geometry, bgColor, style.background.cornerRadius);
+        }
         
         // Draw tab label
         float textX = tab.geometry.x + style.padding.left;
-        float textY = tab.geometry.y + (m_TabHeight - style.text.size) / 2.0f;
+        float textY = tab.geometry.y + (m_TabHeight - Theme::Get().TextSizeTabs) / 2.0f;
         
         Color textColor = style.text.color;
         if (isActive) textColor = Theme::Get().TextPrimary;
         else if (isHovered) textColor = Color::Lerp(Theme::Get().TextPrimary, Theme::Get().TextSecondary, 0.2f);
         else textColor = Theme::Get().TextSecondary;
         
-        context.DrawText(tab.label, Point{ textX, textY }, textColor, style.text.size);
+        context.DrawText(tab.label, Point{ textX, textY }, textColor, Theme::Get().TextSizeTabs);
         
-        // Draw active tab underline & glow
+        // Draw active tab underline
         if (isActive) {
             Rect underlineRect{ tab.geometry.x, tab.geometry.y + m_TabHeight - 2.0f, tab.geometry.width, 2.0f };
-            context.DrawRect(underlineRect, Theme::Get().SelectedAccent);
-            
-            // Subtle glow (simplified as a translucent rect above underline)
-            Rect glowRect{ tab.geometry.x, tab.geometry.y + m_TabHeight - 6.0f, tab.geometry.width, 4.0f };
-            Color glowColor = Theme::Get().SelectedAccent;
-            glowColor.a = 0.2f;
-            context.DrawRect(glowRect, glowColor);
+            context.DrawRect(underlineRect, Theme::Get().ActiveTabLine);
         }
     }
     
