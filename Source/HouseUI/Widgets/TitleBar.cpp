@@ -16,8 +16,8 @@ namespace HouseEngine::UI {
 TitleBar::TitleBar(SDL_Window* window, const std::string& title, VkDescriptorSet logoSet, std::shared_ptr<MenuBar> menuBar)
     : m_Window(window), m_Title(title), m_LogoSet(logoSet), m_MenuBar(menuBar)
 {
-    SetPadding(Margin{ 10.0f, 0.0f, 8.0f, 0.0f }); // 10px left margin
-    SetSpacing(4.0f); // 4px gap between logo and MenuBar
+    SetPadding(Margin{ 8.0f, 0.0f, 8.0f, 0.0f }); // 8px left and right margin
+    SetSpacing(2.0f); // 2px gap between logo and MenuBar
 }
 
 void TitleBar::Construct() {
@@ -80,13 +80,13 @@ void TitleBar::Construct() {
     m_CloseWidget = closeBtn;
     
     auto windowControls = std::make_shared<HorizontalBox>();
-    windowControls->SetSpacing(2.0f); // 2px spacing for window controls
+    windowControls->SetSpacing(8.0f); // 8px spacing for window controls
     windowControls->AddChild(m_MinimizeWidget);
     windowControls->AddChild(m_MaximizeWidget);
     windowControls->AddChild(m_CloseWidget);
 
     auto rightContainer = std::make_shared<HorizontalBox>();
-    rightContainer->SetSpacing(-28.0f); // -28px to aggressively close the gap between hit areas
+    rightContainer->SetSpacing(20.0f); // 20px group spacing
     rightContainer->AddChild(toolbarBox);
     rightContainer->AddChild(windowControls);
 
@@ -108,7 +108,7 @@ void TitleBar::Construct() {
 
 Size TitleBar::Measure(const Size& availableSize) {
     HorizontalBox::Measure(availableSize);
-    m_DesiredSize = Size{ availableSize.width, 36.0f }; // Force 36px height
+    m_DesiredSize = Size{ availableSize.width, 32.0f }; // Force 32px height
     return m_DesiredSize;
 }
 

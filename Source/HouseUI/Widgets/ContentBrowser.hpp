@@ -7,6 +7,7 @@
 #include <vector>
 #include <functional>
 #include <memory>
+#include <volk.h>
 
 namespace HouseEngine::UI {
 
@@ -15,7 +16,8 @@ struct ContentItem {
     std::string id;
     std::string name;
     std::string type; // "folder", "mesh", "material", "texture", etc.
-    std::string iconName;
+    std::string iconName; // Fallback font icon name
+    VkDescriptorSet iconTexture = VK_NULL_HANDLE; // Crisp SVG texture
     bool isFolder = false;
     bool isFavorite = false;
     void* userData = nullptr;

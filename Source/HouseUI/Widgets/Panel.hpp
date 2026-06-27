@@ -25,6 +25,10 @@ public:
     // Content management
     void SetContent(const std::shared_ptr<Widget>& content);
     std::shared_ptr<Widget> GetContent() const { return m_Content; }
+    
+    // Toolbar management
+    void SetToolbar(const std::shared_ptr<Widget>& toolbar);
+    std::shared_ptr<Widget> GetToolbar() const { return m_Toolbar; }
 
     // Header management
     void SetTitle(const std::string& title) { m_Title = title; }
@@ -54,6 +58,7 @@ private:
 
     std::string m_Title;
     std::shared_ptr<Widget> m_Content;
+    std::shared_ptr<Widget> m_Toolbar;
     std::vector<HeaderAction> m_HeaderActions;
 
     bool m_Expanded = true;
@@ -65,6 +70,7 @@ private:
     float m_ActionSpacing = 4.0f;
 
     Rect m_HeaderRect;
+    Rect m_ToolbarRect;
     Rect m_ContentRect;
 
     WidgetStyle m_Style;

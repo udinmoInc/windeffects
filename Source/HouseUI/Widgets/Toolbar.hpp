@@ -49,19 +49,16 @@ private:
         std::string iconName;
         std::shared_ptr<Widget> button;
         bool isSeparator = false;
+        ToolbarAlignment align = ToolbarAlignment::Left;
     };
 
     std::vector<ToolInfo> m_Tools;
     std::string m_ActiveTool;
     
-    std::shared_ptr<HorizontalBox> m_RootBox;
-    std::shared_ptr<HorizontalBox> m_LeftBox;
-    std::shared_ptr<HorizontalBox> m_CenterBox;
-    std::shared_ptr<HorizontalBox> m_RightBox;
-
-    float m_Height = 30.0f; // Ultra-thin AAA toolbar
-    float m_IconSize = 14.0f;
-    float m_Spacing = 2.0f;
+    float m_Height = 32.0f; // Height to approximately 32px
+    float m_IconSize = 16.0f; // 16px artwork on 24x24 canvas
+    float m_ButtonSpacing = 8.0f; // 8px spacing between icons within each group
+    float m_GroupSpacing = 18.0f; // 18-20px spacing between groups
     bool m_IsFloating = false;
 
     WidgetStyle m_Style;

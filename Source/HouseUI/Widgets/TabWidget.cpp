@@ -1,6 +1,7 @@
 #include "TabWidget.hpp"
 #include "../Core/PaintContext.hpp"
 #include "../Core/Theme.hpp"
+#include "../Core/Icon.hpp"
 #include <algorithm>
 
 namespace HouseEngine::UI {
@@ -45,47 +46,12 @@ void TabWidget::Arrange(const Rect& allottedRect) {
 }
 
 void TabWidget::Paint(PaintContext& context) {
-    // Draw tab bar background
+    // Flat dark background for the tab strip (Title bar color)
+    Color stripBg = Theme::Get().TabBackground;
     Rect tabBarRect{ m_Geometry.x, m_Geometry.y, m_Geometry.width, m_TabHeight };
-    context.DrawRect(tabBarRect, Theme::Get().PanelBackground);
+    context.DrawRect(tabBarRect, stripBg);
     
-    // Draw tabs
-    for (size_t i = 0; i < m_Tabs.size(); ++i) {
-        const auto& tab = m_Tabs[i];
-        bool isActive = (static_cast<int>(i) == m_ActiveTab);
-        bool isHovered = (static_cast<int>(i) == m_HoveredTab);
-        
-        const WidgetStyle& style = isActive ? m_ActiveTabStyle : m_TabStyle;
-        
-        // Draw tab background
-        Color bgColor = Color{0, 0, 0, 0}; // Transparent by default
-        if (isHovered && !isActive) {
-            bgColor = Theme::Get().HoverOverlay;
-        }
-        
-        if (bgColor.a > 0.001f) {
-            context.DrawRoundedRect(tab.geometry, bgColor, style.background.cornerRadius);
-        }
-        
-        // Draw tab label
-        float textX = tab.geometry.x + style.padding.left;
-        float textY = tab.geometry.y + (m_TabHeight - Theme::Get().TextSizeTabs) / 2.0f;
-        
-        Color textColor = style.text.color;
-        if (isActive) textColor = Theme::Get().TextPrimary;
-        else if (isHovered) textColor = Color::Lerp(Theme::Get().TextPrimary, Theme::Get().TextSecondary, 0.2f);
-        else textColor = Theme::Get().TextSecondary;
-        
-        context.DrawText(tab.label, Point{ textX, textY }, textColor, Theme::Get().TextSizeTabs);
-        
-        // Draw active tab underline
-        if (isActive) {
-            Rect underlineRect{ tab.geometry.x, tab.geometry.y + m_TabHeight - 2.0f, tab.geometry.width, 2.0f };
-            context.DrawRect(underlineRect, Theme::Get().ActiveTabLine);
-        }
-    }
-    
-    // Draw separator line below tabs
+    // No separator line in modern AAA unless necessary, but we can draw a 1px baseline
     Rect separatorRect{
         m_Geometry.x,
         m_Geometry.y + m_TabHeight - 1.0f,
@@ -93,6 +59,59 @@ void TabWidget::Paint(PaintContext& context) {
         1.0f
     };
     context.DrawRect(separatorRect, Theme::Get().BorderDefault);
+    
+    // Draw tabs
+    for (size_t i = 0; i < m_Tabs.size(); ++i) {
+        const auto& tab = m_Tabs[i];
+        bool isActive = (static_cast<int>(i) == m_ActiveTab);
+        bool isHovered = (static_cast<int>(i) == m_HoveredTab);
+        
+        // Draw tab background
+        if (isActive) {
+            // Match the viewport background so it connects seamlessly
+            Color activeBg = Theme::Get().ViewportBackground;
+            // Draw slightly taller so it covers the separator line below it
+            Rect activeTabRect = tab.geometry;
+            activeTabRect.height += 1.0f; // Cover the 1px separator
+            context.DrawRect(activeTabRect, activeBg);
+            
+            // Subtle accent line (2px blue underline) at the bottom
+            Rect underlineRect{ tab.geometry.x, tab.geometry.y + m_TabHeight - 2.0f, tab.geometry.width, 2.0f };
+            context.DrawRect(underlineRect, Theme::Get().SelectedAccent);
+        } else if (isHovered) {
+            // Very subtle hover on inactive tabs
+            Color hoverBg = Color{ 1.0f, 1.0f, 1.0f, 0.05f };
+            context.DrawRect(tab.geometry, hoverBg);
+        }
+        
+        // Draw tab label
+        float textX = tab.geometry.x + 14.0f; // 14px padding
+        float textY = tab.geometry.y + (m_TabHeight - Theme::Get().TextSizeTabs) / 2.0f;
+        
+        Color textColor = isActive ? Color::White() : Theme::Get().TextSecondary;
+        if (isHovered && !isActive) textColor = Theme::Get().TextPrimary;
+        
+        context.DrawText(tab.label, Point{ textX, textY }, textColor, Theme::Get().TextSizeTabs);
+        // Simulate bold text for active tab by drawing it again with a small offset
+        if (isActive) {
+            context.DrawText(tab.label, Point{ textX + 0.5f, textY }, textColor, Theme::Get().TextSizeTabs);
+        }
+        
+        // Draw close button if active or hovered
+        if (isActive || isHovered) {
+            float textWidth = tab.label.length() * 7.5f;
+            float iconSize = 12.0f;
+            float iconX = tab.geometry.x + 14.0f + textWidth + 8.0f; // 8px space after text
+            
+            Color iconColor = Color{ 0.5f, 0.5f, 0.5f, 1.0f };
+            if (isActive) iconColor = Color{ 0.7f, 0.7f, 0.7f, 1.0f };
+            
+            int codepoint = Icons::GetCodepoint("x");
+            if (codepoint != 0) {
+                context.DrawIcon(codepoint, Point{ iconX, tab.geometry.y + (m_TabHeight - iconSize) / 2.0f }, iconColor, iconSize);
+            }
+        }
+    }
     
     // Draw active tab content
     if (m_ActiveTab >= 0 && m_ActiveTab < static_cast<int>(m_Tabs.size())) {
@@ -189,17 +208,27 @@ std::shared_ptr<Widget> TabWidget::GetTabContent(int index) const {
 
 void TabWidget::CalculateTabGeometries() {
     float x = m_Geometry.x;
-    float availableWidth = m_Geometry.width;
-    int tabCount = static_cast<int>(m_Tabs.size());
     
-    if (tabCount == 0) return;
+    if (m_Tabs.empty()) return;
     
-    // Calculate tab width (equal distribution or minimum width)
-    float tabWidth = std::max(m_TabMinWidth, availableWidth / tabCount);
-    
-    for (auto& tab : m_Tabs) {
+    for (size_t i = 0; i < m_Tabs.size(); ++i) {
+        auto& tab = m_Tabs[i];
+        bool isActive = (static_cast<int>(i) == m_ActiveTab);
+        bool isHovered = (static_cast<int>(i) == m_HoveredTab);
+        
+        // AAA Desktop padding: 14px on left, 14px on right.
+        float padding = 28.0f; 
+        
+        // Add space for close button if active or hovered
+        if (isActive || isHovered) {
+            padding += 16.0f; // 12px icon + 4px spacing
+        }
+        
+        float textWidth = tab.label.length() * 7.5f; // Rough text width estimate
+        float tabWidth = std::max(m_TabMinWidth, textWidth + padding);
+        
         tab.geometry = Rect{ x, m_Geometry.y, tabWidth, m_TabHeight };
-        x += tabWidth;
+        x += tabWidth + m_TabSpacing;
     }
 }
 

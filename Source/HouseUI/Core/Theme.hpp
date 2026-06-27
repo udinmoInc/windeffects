@@ -11,36 +11,36 @@ struct Theme {
     // Colors (AAA Neutral Dark Theme - Industrial 2026 Style)
     // ------------------------------------------------------------------------
     // Core UI Colors
-    Color WindowBackground  = { 0.118f, 0.118f, 0.118f, 1.0f }; // #1E1E1E
-    Color WorkspaceBackground = { 0.118f, 0.118f, 0.118f, 1.0f }; // #1E1E1E
-    Color ToolbarBackground = { 0.176f, 0.176f, 0.188f, 1.0f }; // #2D2D30
-    Color PanelBackground   = { 0.145f, 0.145f, 0.149f, 1.0f }; // #252526
-    Color HeaderBackground  = { 0.145f, 0.145f, 0.149f, 1.0f }; // #252526
-    Color ViewportBackground = { 0.118f, 0.118f, 0.118f, 1.0f }; // #1E1E1E
-    Color MenuBarBackground = { 0.118f, 0.118f, 0.118f, 1.0f }; // #1E1E1E
-    Color TabBackground     = { 0.145f, 0.145f, 0.149f, 1.0f }; // #252526
-    Color PopupBackground   = { 0.145f, 0.145f, 0.149f, 1.0f }; // #252526
+    Color WindowBackground  = { 0.137f, 0.137f, 0.137f, 1.0f }; // #232323
+    Color WorkspaceBackground = { 0.137f, 0.137f, 0.137f, 1.0f }; // #232323
+    Color ToolbarBackground = { 0.165f, 0.165f, 0.165f, 1.0f }; // #2A2A2A
+    Color PanelBackground   = { 0.145f, 0.145f, 0.145f, 1.0f }; // #252525
+    Color HeaderBackground  = { 0.145f, 0.145f, 0.145f, 1.0f }; // #252525 (MenuBar/TitleBar)
+    Color ViewportBackground = { 0.188f, 0.188f, 0.188f, 1.0f }; // #303030 (Viewport Toolbar)
+    Color MenuBarBackground = { 0.145f, 0.145f, 0.145f, 1.0f }; // #252525
+    Color TabBackground     = { 0.169f, 0.169f, 0.169f, 1.0f }; // #2B2B2B
+    Color PopupBackground   = { 0.149f, 0.149f, 0.149f, 1.0f }; // #262626
     
-    // Borders (rgba(255,255,255,0.06))
-    Color BorderDefault     = { 1.0f, 1.0f, 1.0f, 0.06f };
-    Color BorderLight       = { 1.0f, 1.0f, 1.0f, 0.06f };
-    Color BorderDark        = { 1.0f, 1.0f, 1.0f, 0.06f };
-    Color Separator         = { 1.0f, 1.0f, 1.0f, 0.06f };
+    // Borders
+    Color BorderDefault     = { 0.204f, 0.204f, 0.204f, 1.0f }; // #343434
+    Color BorderLight       = { 0.204f, 0.204f, 0.204f, 1.0f }; // #343434
+    Color BorderDark        = { 0.118f, 0.118f, 0.118f, 1.0f }; // #1E1E1E
+    Color Separator         = { 1.0f, 1.0f, 1.0f, 0.12f }; // 12% opacity (10-15%)
 
     // Interactive States
-    Color HoverOverlay      = { 0.200f, 0.200f, 0.216f, 1.0f }; // #333337
-    Color PressedOverlay    = { 0.250f, 0.250f, 0.260f, 1.0f }; // Slightly darker
-    Color SelectedBg        = { 0.227f, 0.478f, 0.996f, 1.0f }; // #3A7AFE
+    Color HoverOverlay      = { 0.196f, 0.196f, 0.196f, 1.0f }; // #323232
+    Color PressedOverlay    = { 0.227f, 0.227f, 0.227f, 1.0f }; // #3A3A3A
+    Color SelectedBg        = { 0.231f, 0.510f, 0.965f, 1.0f }; // #3B82F6
 
     // Text & Content
-    Color TextPrimary       = { 0.886f, 0.886f, 0.886f, 1.0f }; // #E2E2E2
-    Color TextSecondary     = { 0.604f, 0.604f, 0.604f, 1.0f }; // #9A9A9A
+    Color TextPrimary       = { 0.847f, 0.847f, 0.847f, 1.0f }; // #D8D8D8
+    Color TextSecondary     = { 0.659f, 0.659f, 0.659f, 1.0f }; // #A8A8A8
     Color TextDisabled      = { 0.400f, 0.400f, 0.400f, 1.0f }; // #666666
-    Color TextWindowLabel   = { 0.710f, 0.710f, 0.710f, 1.0f }; // #B5B5B5
+    Color TextWindowLabel   = { 0.659f, 0.659f, 0.659f, 1.0f }; // #A8A8A8
 
     // Accents
-    Color SelectedAccent    = { 0.227f, 0.478f, 0.996f, 1.0f }; // #3A7AFE (Accent Blue)
-    Color ActiveTabLine     = { 0.227f, 0.478f, 0.996f, 1.0f }; // #3A7AFE
+    Color SelectedAccent    = { 0.231f, 0.510f, 0.965f, 1.0f }; // #3B82F6
+    Color ActiveTabLine     = { 0.231f, 0.510f, 0.965f, 1.0f }; // #3B82F6
     Color Success           = { 0.180f, 0.800f, 0.443f, 1.0f };
     Color Warning           = { 0.945f, 0.768f, 0.058f, 1.0f };
 
@@ -76,8 +76,8 @@ struct Theme {
     
     // Core metrics (8px grid)
     Margin PaddingWindow    = { 0.0f, 0.0f, 0.0f, 0.0f };
-    Margin PaddingPanel     = { 4.0f, 4.0f, 4.0f, 4.0f };
-    Margin PaddingButton    = { 8.0f, 4.0f, 8.0f, 4.0f };
+    Margin PaddingPanel     = { 2.0f, 2.0f, 2.0f, 2.0f }; // tighter panels
+    Margin PaddingButton    = { 6.0f, 2.0f, 6.0f, 2.0f }; // tighter buttons
     Margin PaddingIconBtn   = { 4.0f, 4.0f, 4.0f, 4.0f };
 
     // ------------------------------------------------------------------------

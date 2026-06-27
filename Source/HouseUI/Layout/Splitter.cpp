@@ -92,6 +92,18 @@ void Splitter::Arrange(const Rect& allottedRect) {
     }
 }
 
+Rect Splitter::GetSplitterHitRect() const {
+    Rect barRect = GetSplitterBarRect();
+    // Inflate the rect for grabbing
+    if (m_Orientation == Orientation::Horizontal) {
+        float padding = (m_HitThickness - m_BarThickness) / 2.0f;
+        return Rect{ barRect.x - padding, barRect.y, m_HitThickness, barRect.height };
+    } else {
+        float padding = (m_HitThickness - m_BarThickness) / 2.0f;
+        return Rect{ barRect.x, barRect.y - padding, barRect.width, m_HitThickness };
+    }
+}
+
 void Splitter::Paint(PaintContext& context) {
     if (!m_Visible) return;
 
@@ -100,18 +112,38 @@ void Splitter::Paint(PaintContext& context) {
 
     // Draw Splitter Bar
     Rect barRect = GetSplitterBarRect();
-    Color barColor = m_Dragging ? Theme::Get().SelectedAccent : Theme::Get().Separator;
-    context.DrawRect(barRect, barColor);
+    
+    // Draw an extremely subtle 1px line to separate panels cleanly
+    Color subtleBorder = Theme::Get().BorderDefault; // Use theme border color
+    
+    if (m_Dragging || m_Hovered) {
+        // Draw the soft blue highlight when hovered or dragging
+        subtleBorder = Theme::Get().SelectedAccent;
+        if (!m_Dragging) {
+            subtleBorder.a = 0.5f; 
+        }
+    }
+    
+    if (m_Orientation == Orientation::Horizontal) {
+        Rect visualRect{ barRect.x + barRect.width / 2.0f, barRect.y, 1.0f, barRect.height };
+        context.DrawRect(visualRect, subtleBorder);
+    } else {
+        Rect visualRect{ barRect.x, barRect.y + barRect.height / 2.0f, barRect.width, 1.0f };
+        context.DrawRect(visualRect, subtleBorder);
+    }
 }
 
 void Splitter::OnMouseDown(const MouseEvent& event) {
-    Rect barRect = GetSplitterBarRect();
-    if (barRect.Contains(event.position)) {
+    Rect hitRect = GetSplitterHitRect();
+    if (hitRect.Contains(event.position)) {
         m_Dragging = true;
     }
 }
 
 void Splitter::OnMouseMove(const MouseEvent& event) {
+    Rect hitRect = GetSplitterHitRect();
+    m_Hovered = hitRect.Contains(event.position);
+
     if (m_Dragging) {
         if (m_Orientation == Orientation::Horizontal) {
             float relativeX = event.position.x - m_Geometry.x;

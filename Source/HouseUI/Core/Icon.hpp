@@ -63,7 +63,7 @@ public:
 // Full reference: https://fonts.google.com/icons
 namespace Icons {
     // Selection tools
-    constexpr int Cursor     = 0xEAA0; // arrow-small-up
+    constexpr int Cursor     = 0xEA8C; // pointer
     constexpr int Move       = 0xEB22; // move
     constexpr int Rotate     = 0xEB37; // refresh
     constexpr int Scale      = 0xEB4C; // screen-full

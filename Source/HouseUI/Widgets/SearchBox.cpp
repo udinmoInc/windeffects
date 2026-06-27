@@ -11,7 +11,9 @@ SearchBox::SearchBox()
 {}
 
 Size SearchBox::Measure(const Size& availableSize) {
-    return Size{ m_Width, m_Height };
+    float w = m_FillWidth ? availableSize.width : m_Width;
+    m_DesiredSize = Size{ w, m_Height };
+    return m_DesiredSize;
 }
 
 void SearchBox::Arrange(const Rect& allottedRect) {
@@ -20,16 +22,16 @@ void SearchBox::Arrange(const Rect& allottedRect) {
 
 void SearchBox::Paint(PaintContext& context) {
     // Draw background
-    Color bgColor = Color{ 0.137f, 0.137f, 0.137f, 1.0f }; // #232323
+    Color bgColor = Color{ 0.117f, 0.117f, 0.117f, 1.0f }; // #1E1E1E
     if (IsFocused()) {
-        bgColor = Theme::Get().HoverOverlay; // Keep hover behavior if any, or adjust
+        bgColor = Color{ 0.14f, 0.14f, 0.14f, 1.0f };
     }
     
     float cornerRadius = 4.0f;
     context.DrawRoundedRect(m_Geometry, bgColor, cornerRadius);
     
     // Draw border
-    Color borderColor = Color{ 1.0f, 1.0f, 1.0f, 0.06f }; // rgba(255,255,255,0.06)
+    Color borderColor = Color{ 0.227f, 0.227f, 0.227f, 1.0f }; // #3A3A3A
     if (IsFocused()) {
         borderColor = Theme::Get().SelectedAccent;
     }
@@ -42,23 +44,22 @@ void SearchBox::Paint(PaintContext& context) {
     float iconY = m_Geometry.y + (m_Height - iconSize) / 2.0f;
     
     Rect iconRect{ iconX, iconY, iconSize, iconSize };
-    IconPainter::DrawIcon(context, Icons::Search, iconRect, Theme::Get().TextSecondary);
+    IconPainter::DrawIcon(context, Icons::Search, iconRect, Color{0.556f, 0.556f, 0.556f, 1.0f});
     
     // Draw text or placeholder
     Rect textRect = GetTextRect();
     
     if (m_Text.empty()) {
-        Color placeholderColor = Color{ 0.478f, 0.478f, 0.478f, 1.0f }; // #7A7A7A
+        Color placeholderColor = Color{ 0.556f, 0.556f, 0.556f, 1.0f }; // #8E8E8E
         context.DrawText(m_Placeholder, Point{ textRect.x, textRect.y }, placeholderColor, 12.0f);
     } else {
-        context.DrawText(m_Text, Point{ textRect.x, textRect.y }, m_Style.text.color, 12.0f);
+        context.DrawText(m_Text, Point{ textRect.x, textRect.y }, Color{0.878f, 0.878f, 0.878f, 1.0f}, 12.0f);
         
         // Draw caret if focused
         if (IsFocused() && m_ShowCaret) {
             float caretX = textRect.x + context.GetTextWidth(m_Text.substr(0, m_CaretPosition), 12.0f);
             float caretY = textRect.y;
             float caretHeight = 12.0f;
-
             
             Rect caretRect{ caretX, caretY, 1.5f, caretHeight };
             context.DrawRect(caretRect, Theme::Get().TextPrimary);

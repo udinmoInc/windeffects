@@ -12,10 +12,19 @@ Panel::Panel(const std::string& title)
     , m_HeaderStyle(WidgetStyle::Panel())
 {}
 
+void Panel::SetToolbar(const std::shared_ptr<Widget>& toolbar) {
+    m_Toolbar = toolbar;
+}
+
 Size Panel::Measure(const Size& availableSize) {
     float totalHeight = m_HeaderHeight;
     
-    if (m_Expanded && m_Content) {
+    if (m_Toolbar) {
+        Size tbSize = m_Toolbar->Measure(availableSize);
+        totalHeight += tbSize.height;
+    }
+    
+    if (m_Content) {
         Size contentSize = m_Content->Measure(availableSize);
         totalHeight += contentSize.height;
     }
@@ -34,13 +43,28 @@ void Panel::Arrange(const Rect& allottedRect) {
         m_HeaderHeight
     };
     
+    float currentY = allottedRect.y + m_HeaderHeight;
+    
+    // Calculate toolbar rect
+    if (m_Toolbar) {
+        Size tbSize = m_Toolbar->GetDesiredSize();
+        m_ToolbarRect = Rect{
+            allottedRect.x,
+            currentY,
+            allottedRect.width,
+            tbSize.height
+        };
+        m_Toolbar->Arrange(m_ToolbarRect);
+        currentY += tbSize.height;
+    }
+    
     // Calculate content rect
-    if (m_Expanded && m_Content) {
+    if (m_Content) {
         m_ContentRect = Rect{
             allottedRect.x,
-            allottedRect.y + m_HeaderHeight,
+            currentY,
             allottedRect.width,
-            allottedRect.height - m_HeaderHeight
+            allottedRect.y + allottedRect.height - currentY
         };
         m_Content->Arrange(m_ContentRect);
     }
@@ -49,53 +73,87 @@ void Panel::Arrange(const Rect& allottedRect) {
 }
 
 void Panel::Paint(PaintContext& context) {
-    // Draw panel background
-    context.DrawRoundedRect(m_Geometry, m_Style.background.color, 0.0f); // No rounded corners
+    // Colors
+    Color panelBodyColor{0.145f, 0.145f, 0.145f, 1.0f}; // #252525
+    Color tabBg = m_HeaderHovered ? Color{0.196f, 0.196f, 0.196f, 1.0f} : Color{0.173f, 0.173f, 0.173f, 1.0f}; // #323232 hover, #2C2C2C idle
+    Color tabBorder{0.227f, 0.227f, 0.227f, 1.0f}; // #3A3A3A
+    Color textColor{0.878f, 0.878f, 0.878f, 1.0f}; // #E0E0E0
+    Color shadowColor{0.0f, 0.0f, 0.0f, 0.3f};
+
+    // Draw panel body background
+    context.DrawRect(m_Geometry, panelBodyColor);
     
-    // Minimal or no border
-    // context.DrawRoundedRectOutline(m_Geometry, m_Style.border.color, m_Style.border.width, m_Style.background.cornerRadius);
+    // Draw header strip background (darker area behind tabs)
+    context.DrawRect(m_HeaderRect, Theme::Get().HeaderBackground);
     
-    // Draw header background
-    Color headerBg = Theme::Get().HeaderBackground;
-    if (m_HeaderHovered && m_Collapsible) {
-        headerBg = Theme::Get().HoverOverlay;
+    // Metrics
+    float fontSize = 13.0f; // Segoe UI / Inter Medium 12-13px
+    float iconSize = 16.0f; // Expand arrow 16px
+    float paddingH = 12.0f; // 10-12px horizontal padding
+    
+    float textWidth = context.GetTextWidth(m_Title, fontSize);
+    
+    // Calculate actions width
+    float actionsWidth = 0.0f;
+    if (!m_HeaderActions.empty()) {
+        actionsWidth = (iconSize * m_HeaderActions.size()) + (m_ActionSpacing * (m_HeaderActions.size() - 1)) + 8.0f;
     }
-    context.DrawRect(m_HeaderRect, headerBg); // Flat rect
     
-    // Draw subtle separator line below header
-    Rect separatorRect{
-        m_HeaderRect.x,
-        m_HeaderRect.y + m_HeaderRect.height - 1.0f,
-        m_HeaderRect.width,
-        1.0f
-    };
-    context.DrawRect(separatorRect, Theme::Get().BorderDefault);
+    // Calculate tab width
+    float tabWidth = paddingH + textWidth + actionsWidth + paddingH;
     
-    // Draw collapse/expand chevron
-    if (m_Collapsible) {
-        float chevronSize = 12.0f; // Smaller collapse arrow
-        float chevronX = m_HeaderRect.x + 6.0f; // Tighter padding
-        float chevronY = m_HeaderRect.y + (m_HeaderHeight - chevronSize) / 2.0f;
-        
-        Rect chevronRect{ chevronX, chevronY, chevronSize, chevronSize };
-        int chevronIcon = m_Expanded ? Icons::ChevronDown : Icons::ChevronRight;
-        IconPainter::DrawIcon(context, chevronIcon, chevronRect, Theme::Get().TextSecondary);
-    }
+    Rect tabRect{ m_HeaderRect.x, m_HeaderRect.y, tabWidth, m_HeaderRect.height };
+    
+    // Draw Tab background (rounded top)
+    context.DrawRoundedRect(tabRect, tabBg, 4.0f);
+    
+    // Flatten bottom corners
+    float flattenHeight = 4.0f;
+    context.DrawRect(Rect{tabRect.x, tabRect.y + tabRect.height - flattenHeight, tabRect.width, flattenHeight}, tabBg);
+    
+    // Draw 1px border around active tab
+    context.DrawRoundedRectOutline(tabRect, tabBorder, 1.0f, 4.0f);
+    
+    // Flatten bottom border
+    context.DrawRect(Rect{tabRect.x, tabRect.y + tabRect.height - flattenHeight, 1.0f, flattenHeight}, tabBorder);
+    context.DrawRect(Rect{tabRect.x + tabRect.width - 1.0f, tabRect.y + tabRect.height - flattenHeight, 1.0f, flattenHeight}, tabBorder);
+    
+    // Erase bottom border line across the tab to visually blend into the panel body, except for a subtle shadow
+    context.DrawRect(Rect{tabRect.x + 1.0f, tabRect.y + tabRect.height - 1.0f, tabRect.width - 2.0f, 1.0f}, tabBg);
+    
+    // Draw subtle 1px bottom shadow/border to separate it from content below
+    context.DrawRect(Rect{m_HeaderRect.x, m_HeaderRect.y + m_HeaderRect.height - 1.0f, m_HeaderRect.width, 1.0f}, shadowColor);
     
     // Draw title
-    float titleX = m_HeaderRect.x + (m_Collapsible ? 22.0f : 8.0f);
-    float textSize = Theme::Get().TextSizeSection;
-    float titleY = m_HeaderRect.y + (m_HeaderHeight - textSize) / 2.0f;
-    Color titleColor = Color{ 0.815f, 0.815f, 0.815f, 1.0f }; // #D0D0D0
-    context.DrawText(m_Title, Point{ titleX, titleY }, titleColor, textSize, true);
+    float currentX = tabRect.x + paddingH;
+    float titleY = m_HeaderRect.y + (m_HeaderHeight - fontSize) / 2.0f;
+    context.DrawText(m_Title, Point{ currentX, titleY }, textColor, fontSize, false);
     
-    // Draw header actions
-    for (const auto& action : m_HeaderActions) {
-        IconPainter::DrawIcon(context, action.iconName, action.geometry, Theme::Get().TextSecondary);
+    // Draw header actions inside tab
+    float actionX = tabRect.x + tabRect.width - paddingH - iconSize;
+    for (auto& action : m_HeaderActions) {
+        float actionY = m_HeaderRect.y + (m_HeaderHeight - iconSize) / 2.0f;
+        action.geometry = Rect{ actionX, actionY, iconSize, iconSize };
+        IconPainter::DrawIcon(context, action.iconName, action.geometry, textColor);
+        actionX -= (iconSize + m_ActionSpacing);
     }
     
-    // Draw content
-    if (m_Expanded && m_Content) {
+    // Draw toolbar
+    if (m_Toolbar) {
+        m_Toolbar->Paint(context);
+        
+        // Draw subtle 1px divider below toolbar
+        Rect toolbarDividerRect{
+            m_ToolbarRect.x,
+            m_ToolbarRect.y + m_ToolbarRect.height - 1.0f,
+            m_ToolbarRect.width,
+            1.0f
+        };
+        context.DrawRect(toolbarDividerRect, tabBorder);
+    }
+    
+    // Draw content (always expanded now since it's a dock tab)
+    if (m_Content) {
         m_Content->Paint(context);
     }
 }
@@ -103,30 +161,11 @@ void Panel::Paint(PaintContext& context) {
 void Panel::OnMouseDown(const MouseEvent& event) {
     // Check if clicked on header
     if (m_HeaderRect.Contains(event.position)) {
-        // Check if clicked on collapse chevron
-        if (m_Collapsible) {
-            float chevronSize = 14.0f;
-            float chevronX = m_HeaderRect.x + 8.0f;
-            float chevronY = m_HeaderRect.y + (m_HeaderHeight - chevronSize) / 2.0f;
-            Rect chevronRect{ chevronX, chevronY, chevronSize, chevronSize };
-            
-            if (event.position.x >= chevronRect.x && event.position.x <= chevronRect.x + chevronRect.width &&
-                event.position.y >= chevronRect.y && event.position.y <= chevronRect.y + chevronRect.height) {
-                Toggle();
-                return;
-            }
-        }
-        
         // Check if clicked on header action
         HeaderAction* action = GetActionAtPosition(event.position);
         if (action && action->onClick) {
             action->onClick();
             return;
-        }
-        
-        // Toggle collapse if clicked anywhere else on header
-        if (m_Collapsible) {
-            Toggle();
         }
     }
 }

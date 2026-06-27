@@ -32,9 +32,10 @@
 #include <nanosvgrast.h>
 
 #include "../HouseUI/Widgets/LogoSVG.hpp"
+#include "../HouseUI/Widgets/AssetIcons.hpp"
+#include <map>
 
-static VkDescriptorSet LoadSVGSingle(std::shared_ptr<HouseEngine::VulkanContext>& context, HouseEngine::UI::UIRenderer* uiRenderer, int width, int height) {
-    std::string svgStr = g_WindEffectsLogoSVG;
+static VkDescriptorSet LoadSVGFromString(std::shared_ptr<HouseEngine::VulkanContext>& context, HouseEngine::UI::UIRenderer* uiRenderer, const std::string& svgStr, int width, int height, bool forceWhite = false) {
     std::vector<char> svgCopy(svgStr.begin(), svgStr.end());
     svgCopy.push_back('\0');
 
@@ -44,10 +45,12 @@ static VkDescriptorSet LoadSVGSingle(std::shared_ptr<HouseEngine::VulkanContext>
         return VK_NULL_HANDLE;
     }
 
-    // Force all shapes to be white
-    for (NSVGshape* shape = image->shapes; shape != NULL; shape = shape->next) {
-        shape->fill.type = NSVG_PAINT_COLOR; // 1 = NSVG_PAINT_COLOR
-        shape->fill.color = 0xFFFFFFFF; // White with full alpha
+    if (forceWhite) {
+        // Force all shapes to be white
+        for (NSVGshape* shape = image->shapes; shape != NULL; shape = shape->next) {
+            shape->fill.type = NSVG_PAINT_COLOR; // 1 = NSVG_PAINT_COLOR
+            shape->fill.color = 0xFFFFFFFF; // White with full alpha
+        }
     }
     
     NSVGrasterizer* rast = nsvgCreateRasterizer();
@@ -296,7 +299,7 @@ void Editor::BuildEditorUI() {
     // Text labels for: Rotate, Build, Platform, Git, Perspective, Lit
     // ============================================================
     auto toolbar = std::make_shared<UI::Toolbar>();
-    toolbar->SetHeight(34.0f);
+    // Height and spacing now defined in Toolbar.hpp to match AAA layout
 
     // --- Group 1: File Operations ---
     toolbar->AddTool(UI::Icons::SaveName, "", []() { /* TODO */ }, "Save  (Ctrl+S)", false, UI::ToolbarAlignment::Left);
@@ -339,7 +342,17 @@ void Editor::BuildEditorUI() {
 
     
     // Load SVG Logo
-    VkDescriptorSet logoDesc = LoadSVGSingle(m_Context, m_UIRenderer.get(), 20, 20);
+    VkDescriptorSet logoDesc = LoadSVGFromString(m_Context, m_UIRenderer.get(), g_WindEffectsLogoSVG, 20, 20, true);
+    
+    // Load Asset Icons
+    std::map<std::string, VkDescriptorSet> assetIcons;
+    assetIcons["folder"] = LoadSVGFromString(m_Context, m_UIRenderer.get(), HouseEngine::UI::g_SvgFolder, 48, 48);
+    assetIcons["blueprint"] = LoadSVGFromString(m_Context, m_UIRenderer.get(), HouseEngine::UI::g_SvgBlueprint, 48, 48);
+    assetIcons["material"] = LoadSVGFromString(m_Context, m_UIRenderer.get(), HouseEngine::UI::g_SvgMaterial, 48, 48);
+    assetIcons["mesh"] = LoadSVGFromString(m_Context, m_UIRenderer.get(), HouseEngine::UI::g_SvgStaticMesh, 48, 48);
+    assetIcons["texture"] = LoadSVGFromString(m_Context, m_UIRenderer.get(), HouseEngine::UI::g_SvgTexture, 48, 48);
+    assetIcons["map"] = LoadSVGFromString(m_Context, m_UIRenderer.get(), HouseEngine::UI::g_SvgMap, 48, 48);
+    assetIcons["generic"] = LoadSVGFromString(m_Context, m_UIRenderer.get(), HouseEngine::UI::g_SvgGeneric, 48, 48);
 
     // Create custom TitleBar
     m_TitleBar = std::make_shared<UI::TitleBar>(m_Window, "WindEffects Engine", logoDesc, menuBar);
@@ -357,9 +370,25 @@ void Editor::BuildEditorUI() {
     // Outer horizontal splitter: Left column | Center+Right
     auto outerSplitter = std::make_shared<UI::Splitter>(UI::Orientation::Horizontal, 0.20f);
 
+    // Helper to create a standard UE5-style panel with a search toolbar and close button
+    auto createPanelWithSearch = [](const std::string& title) {
+        auto panel = std::make_shared<UI::Panel>(title);
+        panel->SetHeaderHeight(30.0f);
+        panel->AddHeaderAction(UI::Icons::XName, []() {});
+        
+        auto toolbarBox = std::make_shared<UI::HorizontalBox>();
+        toolbarBox->SetPadding(UI::Margin{8.0f, 4.0f, 8.0f, 4.0f});
+        auto searchBox = std::make_shared<UI::SearchBox>();
+        searchBox->SetFillWidth(true);
+        searchBox->SetPlaceholder("Search...");
+        toolbarBox->AddChild(searchBox);
+        
+        panel->SetToolbar(toolbarBox);
+        return panel;
+    };
+
     // ---- LEFT COLUMN: World Outliner (full height) ----
-    auto outlinerPanel = std::make_shared<UI::Panel>("World Outliner");
-    outlinerPanel->SetHeaderHeight(30.0f);
+    auto outlinerPanel = createPanelWithSearch("World Outliner");
     
     auto treeView = std::make_shared<UI::TreeView>();
     treeView->SetOnSelectionChanged([this](const std::string& id) {
@@ -395,16 +424,16 @@ void Editor::BuildEditorUI() {
     mainTabWidget->SetTabContent(0, viewportContainer);
     
     mainTabWidget->AddTab("World");
-    mainTabWidget->SetTabContent(1, std::make_shared<UI::Panel>("World Settings"));
+    mainTabWidget->SetTabContent(1, createPanelWithSearch("World Settings"));
     
     mainTabWidget->AddTab("Blueprints");
-    mainTabWidget->SetTabContent(2, std::make_shared<UI::Panel>("Blueprints"));
+    mainTabWidget->SetTabContent(2, createPanelWithSearch("Blueprints"));
     
     mainTabWidget->AddTab("Animation");
-    mainTabWidget->SetTabContent(3, std::make_shared<UI::Panel>("Animation Graph"));
+    mainTabWidget->SetTabContent(3, createPanelWithSearch("Animation Graph"));
 
     mainTabWidget->AddTab("Material");
-    mainTabWidget->SetTabContent(4, std::make_shared<UI::Panel>("Material Editor"));
+    mainTabWidget->SetTabContent(4, createPanelWithSearch("Material Editor"));
 
     centerSplitter->SetFirstChild(mainTabWidget);
     
@@ -435,7 +464,7 @@ void Editor::BuildEditorUI() {
     bottomTabWidget->SetTabContent(0, contentBrowser);
     
     bottomTabWidget->AddTab("Output Log");
-    auto logPanel = std::make_shared<UI::Panel>("Output Log");
+    auto logPanel = createPanelWithSearch("Output Log");
     logPanel->SetCollapsible(false);
     m_ConsoleList = std::make_shared<UI::VerticalBox>();
     m_ConsoleList->SetSpacing(2.0f);
@@ -443,12 +472,12 @@ void Editor::BuildEditorUI() {
     bottomTabWidget->SetTabContent(1, logPanel);
     
     bottomTabWidget->AddTab("Console");
-    auto consolePanel = std::make_shared<UI::Panel>("Console");
+    auto consolePanel = createPanelWithSearch("Console");
     consolePanel->SetCollapsible(false);
     bottomTabWidget->SetTabContent(2, consolePanel);
 
     bottomTabWidget->AddTab("Profiler");
-    auto profilerPanel = std::make_shared<UI::Panel>("Profiler Data");
+    auto profilerPanel = createPanelWithSearch("Profiler Data");
     profilerPanel->SetCollapsible(false);
     bottomTabWidget->SetTabContent(3, profilerPanel);
     
@@ -457,10 +486,7 @@ void Editor::BuildEditorUI() {
     innerSplitter->SetFirstChild(centerVBox);
 
     // ---- RIGHT COLUMN: Details/Inspector (full height) ----
-    auto inspectorPanel = std::make_shared<UI::Panel>("Details");
-    inspectorPanel->SetHeaderHeight(30.0f);
-    inspectorPanel->AddHeaderAction(UI::Icons::SearchName, []() { /* TODO: Search */ });
-    inspectorPanel->AddHeaderAction(UI::Icons::SettingsName, []() { /* TODO: Settings */ });
+    auto inspectorPanel = createPanelWithSearch("Details");
     auto propertyEditor = std::make_shared<UI::PropertyEditor>();
     m_PropertyEditor = propertyEditor;
     inspectorPanel->SetContent(propertyEditor);

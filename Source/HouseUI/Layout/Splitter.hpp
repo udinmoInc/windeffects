@@ -23,11 +23,14 @@ public:
 
 private:
     Rect GetSplitterBarRect() const;
+    Rect GetSplitterHitRect() const; // Wider area for grabbing
 
     Orientation m_Orientation;
     float m_SplitRatio = 0.5f;
-    float m_BarThickness = 4.0f;
+    float m_BarThickness = 2.0f; // Visual layout thickness
+    float m_HitThickness = 8.0f; // Transparent grab area
     bool m_Dragging = false;
+    bool m_Hovered = false;
 
     std::shared_ptr<Widget> m_FirstChild;
     std::shared_ptr<Widget> m_SecondChild;

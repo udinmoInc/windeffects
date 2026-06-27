@@ -35,7 +35,7 @@ public:
     void SetOnTextChanged(OnTextChanged callback) { m_OnTextChanged = callback; }
 
     // Styling
-    void SetHeight(float height) { m_Height = height; }
+    void SetFillWidth(bool fill) { m_FillWidth = fill; }
 
 private:
     void UpdateCaretBlink(float deltaTime);
@@ -46,8 +46,9 @@ private:
     std::string m_Placeholder = "Search...";
     size_t m_CaretPosition = 0;
     
-    float m_Height = 24.0f;
+    float m_Height = 26.0f; // 26-28px height
     float m_Width = 150.0f;
+    bool m_FillWidth = false;
     float m_CaretBlinkTime = 0.0f;
     bool m_ShowCaret = true;
     
