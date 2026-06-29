@@ -2,10 +2,13 @@
 #include "Widgets/Panel.hpp"
 #include "Layout/Box.hpp"
 #include "Layout/Splitter.hpp"
+#include "Layout/ScrollLayout.hpp"
+#include "Layout/Spacer.hpp"
 #include "Widgets/Label.hpp"
 #include "Widgets/Button.hpp"
 #include "Widgets/TextBox.hpp"
 #include "Core/Logger.hpp"
+#include "ConfigManager.hpp"
 #include <fstream>
 #include <filesystem>
 #include <sstream>
@@ -50,67 +53,138 @@ void CrashReporterUI::LoadCrashData() {
 }
 
 void CrashReporterUI::Construct() {
+    ConfigManager::Get().Load();
     LoadCrashData();
 
     auto rootBox = std::make_shared<VerticalBox>();
-    rootBox->SetPadding(Margin{20.0f, 20.0f, 20.0f, 20.0f});
-    rootBox->SetSpacing(15.0f);
+    rootBox->SetPadding(Margin{16.0f, 16.0f, 16.0f, 16.0f});
+    rootBox->SetSpacing(16.0f);
     
-    // Header
-    auto headerPanel = std::make_shared<Panel>("WindEffects Engine Crash Reporter");
-    headerPanel->SetHeaderHeight(40.0f);
+    const auto& cfg = ConfigManager::Get().GetConfig();
 
-    auto mainContent = std::make_shared<VerticalBox>();
-    mainContent->SetSpacing(10.0f);
-
-    // Pretext
-    mainContent->AddChild(std::make_shared<Label>("We're sorry, the WindEffects Engine has crashed.", Color{1.0f, 0.4f, 0.4f, 1.0f}, 24.0f));
-    mainContent->AddChild(std::make_shared<Label>("A crash report has been generated to help us fix the issue.", Color::White(), 16.0f));
-    mainContent->AddChild(std::make_shared<Label>(" ", Color::White(), 16.0f)); // spacer
-
-    // Crash Details
-    mainContent->AddChild(std::make_shared<Label>("Exception: " + m_ExceptionData.value("Message", "Unknown Exception"), Color{1.0f, 0.2f, 0.2f, 1.0f}, 18.0f));
-    mainContent->AddChild(std::make_shared<Label>("Code: " + m_ExceptionData.value("Code", "N/A")));
-    mainContent->AddChild(std::make_shared<Label>("Module: " + m_ExceptionData.value("Module", "N/A")));
-    mainContent->AddChild(std::make_shared<Label>("Address: " + m_ExceptionData.value("Address", "N/A")));
-    mainContent->AddChild(std::make_shared<Label>(" ", Color::White(), 16.0f));
-
-    mainContent->AddChild(std::make_shared<Label>("Call Stack:", Color::White(), 16.0f));
-    mainContent->AddChild(std::make_shared<Label>(m_StackTrace, Color{0.8f, 0.8f, 0.8f, 1.0f}, 12.0f));
-    mainContent->AddChild(std::make_shared<Label>(" ", Color::White(), 16.0f));
-
-    // Email form
-    std::string supportEmail = "support@windeffects.com";
-    std::string moduleName = m_ExceptionData.value("Module", "WindEffects");
-    std::filesystem::path configPath = "Config/" + moduleName + ".json";
+    // Top Header
+    auto headerBox = std::make_shared<HorizontalBox>();
+    headerBox->SetSpacing(16.0f);
     
-    if (std::filesystem::exists(configPath)) {
-        try {
-            std::ifstream f(configPath);
-            nlohmann::json cfg = nlohmann::json::parse(f);
-            if (cfg.contains("SupportEmail")) {
-                supportEmail = cfg["SupportEmail"].get<std::string>();
-            }
-        } catch(...) {}
+    auto headerTitles = std::make_shared<VerticalBox>();
+    headerTitles->AddChild(std::make_shared<Label>(cfg.engineName + " - Crash Reporter", Color::White(), 24.0f));
+    headerTitles->AddChild(std::make_shared<Label>("Project: " + m_CrashData.value("Project", "Unknown") + " | Build: " + m_CrashData.value("BuildConfiguration", "Unknown"), Color{0.7f, 0.7f, 0.7f, 1.0f}, 14.0f));
+    
+    headerBox->AddChild(headerTitles);
+    rootBox->AddChild(headerBox);
+
+    // Main Splitter
+    auto mainSplitter = std::make_shared<Splitter>(Orientation::Horizontal, 0.65f);
+    
+    // LEFT PANEL (65%)
+    auto leftScroll = std::make_shared<ScrollLayout>();
+    auto leftPanel = std::make_shared<VerticalBox>();
+    leftPanel->SetSpacing(24.0f);
+    leftPanel->SetPadding(Margin{0.0f, 0.0f, 16.0f, 0.0f});
+
+    // Crash Summary Card
+    auto summaryCard = std::make_shared<VerticalBox>();
+    summaryCard->SetSpacing(8.0f);
+    summaryCard->AddChild(std::make_shared<Label>("WindEffects Engine has crashed", Color{1.0f, 0.3f, 0.3f, 1.0f}, 20.0f));
+    summaryCard->AddChild(std::make_shared<Label>("A crash report has been generated automatically. The information below will help diagnose the problem.", Color::White(), 14.0f));
+    leftPanel->AddChild(summaryCard);
+
+    // Exception Details
+    auto exceptionCard = std::make_shared<VerticalBox>();
+    exceptionCard->SetSpacing(4.0f);
+    
+    auto exceptionContent = std::make_shared<VerticalBox>();
+    exceptionContent->SetSpacing(4.0f);
+    exceptionContent->SetVisible(false); // Collapsed by default
+    exceptionContent->AddChild(std::make_shared<Label>("Message: " + m_ExceptionData.value("Message", "Unknown"), Color{1.0f, 0.5f, 0.5f, 1.0f}, 14.0f));
+    exceptionContent->AddChild(std::make_shared<Label>("Module: " + m_ExceptionData.value("Module", "Unknown") + " | Code: " + m_ExceptionData.value("Code", "N/A")));
+    exceptionContent->AddChild(std::make_shared<Label>("Address: " + m_ExceptionData.value("Address", "N/A")));
+    
+    auto toggleExceptionBtn = std::make_shared<Button>("Exception Details (Toggle)", [exceptionContent]() {
+        exceptionContent->SetVisible(!exceptionContent->IsVisible());
+    });
+    
+    exceptionCard->AddChild(toggleExceptionBtn);
+    exceptionCard->AddChild(exceptionContent);
+    leftPanel->AddChild(exceptionCard);
+
+    // Call Stack
+    auto callStackCard = std::make_shared<VerticalBox>();
+    callStackCard->SetSpacing(4.0f);
+    callStackCard->AddChild(std::make_shared<Label>("Call Stack", Color{0.9f, 0.9f, 0.9f, 1.0f}, 18.0f));
+    auto stackScroll = std::make_shared<ScrollLayout>();
+    stackScroll->SetContent(std::make_shared<Label>(m_StackTrace, Color{0.7f, 0.7f, 0.7f, 1.0f}, 12.0f));
+    callStackCard->AddChild(stackScroll);
+    leftPanel->AddChild(callStackCard);
+
+    // Logs
+    auto logsCard = std::make_shared<VerticalBox>();
+    logsCard->SetSpacing(4.0f);
+    logsCard->AddChild(std::make_shared<Label>("Recent Engine Logs", Color{0.9f, 0.9f, 0.9f, 1.0f}, 18.0f));
+    auto logScroll = std::make_shared<ScrollLayout>();
+    logScroll->SetContent(std::make_shared<Label>(m_EngineLog, Color{0.6f, 0.8f, 0.6f, 1.0f}, 12.0f));
+    logsCard->AddChild(logScroll);
+    leftPanel->AddChild(logsCard);
+
+    leftScroll->SetContent(leftPanel);
+    mainSplitter->SetFirstChild(leftScroll);
+
+    // RIGHT PANEL (35%)
+    auto rightScroll = std::make_shared<ScrollLayout>();
+    auto rightPanel = std::make_shared<VerticalBox>();
+    rightPanel->SetSpacing(24.0f);
+    rightPanel->SetPadding(Margin{16.0f, 0.0f, 0.0f, 0.0f});
+
+    // Quick Actions
+    auto actionsCard = std::make_shared<VerticalBox>();
+    actionsCard->SetSpacing(8.0f);
+    actionsCard->AddChild(std::make_shared<Label>("Quick Actions", Color::White(), 16.0f));
+    
+    if (cfg.allowRestart) {
+        actionsCard->AddChild(std::make_shared<Button>("Restart Editor", [this]{ OnRestartEditor(); }));
     }
+    actionsCard->AddChild(std::make_shared<Button>("Open Crash Folder", [this]{ OnOpenCrashFolder(); }));
+    if (cfg.allowZipExport) {
+        actionsCard->AddChild(std::make_shared<Button>("Export ZIP", [this]{ OnExportZip(); }));
+    }
+    rightPanel->AddChild(actionsCard);
 
-    auto emailBox = std::make_shared<HorizontalBox>();
-    emailBox->SetSpacing(10.0f);
-    emailBox->AddChild(std::make_shared<Label>("Send report to: " + supportEmail, Color::White(), 14.0f));
-    
-    // Actions
-    auto actionBox = std::make_shared<HorizontalBox>();
-    actionBox->SetSpacing(20.0f);
-    actionBox->AddChild(std::make_shared<Button>("Send Report", []{ /* TODO: Send Email logic */ }));
-    actionBox->AddChild(std::make_shared<Button>("Export Zip", [this]{ OnExportZip(); }));
-    actionBox->AddChild(std::make_shared<Button>("Open Crash Folder", [this]{ OnOpenCrashFolder(); }));
-    actionBox->AddChild(std::make_shared<Button>("Restart Editor", [this]{ OnRestartEditor(); }));
+    // User Comments
+    auto commentsCard = std::make_shared<VerticalBox>();
+    commentsCard->SetSpacing(8.0f);
+    commentsCard->AddChild(std::make_shared<Label>("User Comments", Color::White(), 16.0f));
+    // Simulated textbox placeholder for now
+    commentsCard->AddChild(std::make_shared<Label>("What were you doing before the crash?", Color{0.5f, 0.5f, 0.5f, 1.0f}, 12.0f));
+    rightPanel->AddChild(commentsCard);
 
-    mainContent->AddChild(emailBox);
-    mainContent->AddChild(actionBox);
+    // System Info
+    auto sysCard = std::make_shared<VerticalBox>();
+    sysCard->SetSpacing(4.0f);
+    sysCard->AddChild(std::make_shared<Label>("System Information", Color::White(), 16.0f));
+    sysCard->AddChild(std::make_shared<Label>("CPU: " + m_SystemData.value("CPU", "Unknown")));
+    sysCard->AddChild(std::make_shared<Label>("GPU: " + m_SystemData.value("GPU", "Unknown")));
+    sysCard->AddChild(std::make_shared<Label>("RAM: " + m_SystemData.value("RAM", "Unknown")));
+    sysCard->AddChild(std::make_shared<Label>("OS: " + m_SystemData.value("OS", "Unknown")));
+    rightPanel->AddChild(sysCard);
 
-    headerPanel->SetContent(mainContent);
-    rootBox->AddChild(headerPanel);
+    // Support
+    auto supportCard = std::make_shared<VerticalBox>();
+    supportCard->SetSpacing(4.0f);
+    supportCard->AddChild(std::make_shared<Label>("Support", Color::White(), 16.0f));
+    supportCard->AddChild(std::make_shared<Label>("Email: " + cfg.supportEmail));
+    supportCard->AddChild(std::make_shared<Label>("Website: " + cfg.supportWebsite));
+    rightPanel->AddChild(supportCard);
+
+    rightScroll->SetContent(rightPanel);
+    mainSplitter->SetSecondChild(rightScroll);
+
+    // Fill remaining space with splitter
+    rootBox->AddChild(mainSplitter);
+
+    // Status bar (bottom)
+    auto statusBar = std::make_shared<Panel>("");
+    statusBar->SetHeaderHeight(30.0f);
+    rootBox->AddChild(statusBar);
 
     m_RootLayout = rootBox;
 }
@@ -121,15 +195,19 @@ we::UI::Size CrashReporterUI::Measure(const Size& availableSize) {
 }
 
 void CrashReporterUI::Arrange(const Rect& allottedRect) {
-    if (m_RootLayout) m_RootLayout->Arrange(allottedRect);
+    if (m_RootLayout) {
+        m_RootLayout->Arrange(allottedRect);
+    }
 }
 
 void CrashReporterUI::Paint(PaintContext& context) {
-    if (m_RootLayout) m_RootLayout->Paint(context);
+    if (m_RootLayout) {
+        m_RootLayout->Paint(context);
+    }
 }
 
 void CrashReporterUI::OnExportZip() {
-    std::string cmd = "powershell.exe -c \"Compress-Archive -Path '" + m_CrashDir + "/*' -DestinationPath 'CrashReport.zip' -Force\"";
+    std::string cmd = "powershell.exe -c \"Compress-Archive -Path '" + m_CrashDir + "/All*' -DestinationPath 'CrashReport.zip' -Force\"";
     system(cmd.c_str());
 }
 
