@@ -1,4 +1,4 @@
-# 🌪️ WindEffects Engine
+# WindEffects Engine
 
 > **A next-generation AAA game engine built from scratch in modern C++23.**
 
